@@ -60,7 +60,7 @@ ONEDRIVE_LINKS = {
     "Sheikh Saqr Center-Ras Al Khaimah Courts": "https://egarakae-my.sharepoint.com/personal/jaouadi_sspge_rak_ae/_layouts/15/download.aspx?SourceUrl=/personal/jaouadi_sspge_rak_ae/Documents/Customer_Satisfaction_Dashboard/Centers_Data/Center_Sheikh_Saqr_Courts.csv"
 }
 
-}
+
 
 @st.cache_data(show_spinner=False)
 def load_csv_from_url(url: str) -> pd.DataFrame:
@@ -625,3 +625,4 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
