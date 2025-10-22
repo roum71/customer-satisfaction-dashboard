@@ -28,7 +28,7 @@ USER_KEYS = {
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 8.2", layout="wide")
+st.set_page_config(page_title="لوحة تجربة المتعاملين  مراكز رأس الخيمة — الإصدار 1.0", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
@@ -89,7 +89,7 @@ def safe_read(file):
         return None
 
 if role == "admin":
-    st.markdown("### 🏛️ وضع الأمانة العامة")
+    st.markdown("### 🏛️ الأمانة العامة")
     target_center = st.selectbox("اختر المركز:", ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"])
     file_path = "Centers_Master.csv" if target_center == "All Centers (Master)" else USER_KEYS[target_center]["file"]
 else:
@@ -341,6 +341,7 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
 
