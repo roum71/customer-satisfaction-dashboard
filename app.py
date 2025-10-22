@@ -207,23 +207,66 @@ with tab_kpis:
 # =========================================================
 # 📋 الخدمات
 # =========================================================
+
+
+
+# =========================================================
+# 📋 الخدمات
+# =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
-    if "SERVICE_name" not in df.columns:
-        st.warning("⚠️ لا يوجد عمود للخدمات.")
+
+    # 👇 البحث الذكي عن عمود الخدمات
+    service_col = None
+    for c in df.columns:
+        c_lower = c.lower().strip()
+        if any(x in c_lower for x in ["service", "خدم"]):
+            service_col = c
+            break
+
+    if not service_col:
+        st.warning("⚠️ لم يتم العثور على عمود للخدمات (Service). يرجى التحقق من اسم العمود في ملف CSV.")
     else:
-        service_summary = df.groupby("SERVICE_name").agg(
-            CSAT=("Dim6.1", series_to_percent),
-            CES=("Dim6.2", series_to_percent),
-            Sample_Size=("SERVICE_name", "count")
-        ).reset_index().sort_values("CSAT", ascending=False)
+        # حساب مؤشرات كل خدمة
+        service_summary = (
+            df.groupby(service_col)
+              .agg(
+                  CSAT=("Dim6.1", series_to_percent),
+                  CES=("Dim6.2", series_to_percent),
+                  Sample_Size=(service_col, "count")
+              )
+              .reset_index()
+              .sort_values("CSAT", ascending=False)
+        )
+
+        # ✅ جدول ملون حسب مستوى CSAT
+        service_summary["CSAT_color"] = np.where(
+            service_summary["CSAT"] >= 80, "#c8f7c5",
+            np.where(service_summary["CSAT"] >= 60, "#fff3b0", "#f5b7b1")
+        )
         fig = go.Figure(data=[go.Table(
-            header=dict(values=list(service_summary.columns),
+            header=dict(values=list(service_summary.columns[:-1]),
                         fill_color="#2c3e50", align='center', font=dict(color='white', size=13)),
-            cells=dict(values=[service_summary[c] for c in service_summary.columns],
+            cells=dict(values=[service_summary[c] for c in service_summary.columns[:-1]],
+                       fill_color=[[c for c in service_summary["CSAT_color"]] for _ in service_summary.columns[:-1]],
                        align='center', font=dict(size=12)))
         ])
+        fig.update_layout(height=450)
         st.plotly_chart(fig, use_container_width=True)
+
+        # ✅ رسم بياني عمودي لمقارنة الخدمات حسب CSAT
+        fig_bar = px.bar(
+            service_summary,
+            x=service_col, y="CSAT",
+            text="Sample_Size",
+            color="CSAT",
+            color_continuous_scale=["#f5b7b1", "#fcf3cf", "#c8f7c5"],
+            title="مستويات رضا المتعاملين (CSAT) حسب الخدمة",
+        )
+        fig_bar.update_traces(textposition="outside")
+        fig_bar.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
+        st.plotly_chart(fig_bar, use_container_width=True)
+
 
 # =========================================================
 # 💬 Pareto
@@ -273,3 +316,4 @@ with tab_pareto:
                           yaxis=dict(title="عدد الملاحظات"),
                           yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
         st.plotly_chart(fig, use_container_width=True)
+
