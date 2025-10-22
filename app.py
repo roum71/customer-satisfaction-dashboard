@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.6 (Executive Edition)
-✅ Fix: target_center NameError + restored All Centers logic
+Customer Satisfaction Dashboard — v8.7 (Executive Edition)
+✅ Fixes NameError / Adds All Centers KPIs + Pareto merge
 ✅ Includes sample size per service
 """
 
@@ -80,7 +80,7 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
 
 center, role = st.session_state["center"], st.session_state["role"]
 
-# ⚙️ إضافة قيمة افتراضية لتفادي الخطأ عند المراكز العادية
+# ⚙️ لتفادي الأخطاء عند المراكز العادية
 target_center = None
 
 # =========================================================
@@ -167,7 +167,6 @@ with tab_sample:
     chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
     grouping = ["CENTER_name"] if "CENTER_name" in df.columns else []
 
-    # ✅ إصلاح الشرط — يعمل فقط للأمانة العامة
     if role == "admin" and target_center == "All Centers (Master)" and grouping:
         summary = df.groupby(grouping).size().reset_index(name="Count")
         fig = px.bar(summary, x="CENTER_name", y="Count", color="CENTER_name",
@@ -193,22 +192,48 @@ with tab_sample:
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
-    csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
-    ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-    nps = detect_nps(df)
-    c1, c2, c3 = st.columns(3)
-    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
-        fig = go.Figure(go.Indicator(
-            mode="gauge+number",
-            value=val if not np.isnan(val) else 0,
-            title={'text': name},
-            gauge={'axis': {'range': [0, 100]},
-                   'steps': [
-                       {'range': [0, 60], 'color': '#f5b7b1'},
-                       {'range': [60, 80], 'color': '#fcf3cf'},
-                       {'range': [80, 100], 'color': '#c8f7c5'}],
-                   'bar': {'color': '#2ecc71'}}))
-        col.plotly_chart(fig, use_container_width=True)
+
+    if role == "admin" and target_center == "All Centers (Master)":
+        combined = []
+        for c, info in USER_KEYS.items():
+            if c == "Executive Council": continue
+            if Path(info["file"]).exists():
+                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
+                dfc["Center"] = c
+                combined.append(dfc)
+        if combined:
+            df_all = pd.concat(combined, ignore_index=True)
+            summary = df_all.groupby("Center").agg(
+                CSAT=("Dim6.1", series_to_percent),
+                CES=("Dim6.2", series_to_percent),
+                NPS=("Center", lambda x: detect_nps(df_all[df_all["Center"] == x.name]))
+            ).reset_index()
+
+            st.dataframe(summary.style.format({"CSAT": "{:.1f}", "CES": "{:.1f}", "NPS": "{:.1f}"}))
+            fig = px.bar(summary.melt(id_vars="Center", value_vars=["CSAT", "CES", "NPS"]),
+                         x="Center", y="value", color="variable",
+                         barmode="group", title="مقارنة المؤشرات بين المراكز",
+                         color_discrete_sequence=PASTEL)
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning("⚠️ لا توجد بيانات كافية لجميع المراكز.")
+    else:
+        csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
+        ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
+        nps = detect_nps(df)
+        c1, c2, c3 = st.columns(3)
+        for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
+            fig = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=val if not np.isnan(val) else 0,
+                title={'text': name},
+                gauge={'axis': {'range': [0, 100]},
+                       'steps': [
+                           {'range': [0, 60], 'color': '#f5b7b1'},
+                           {'range': [60, 80], 'color': '#fcf3cf'},
+                           {'range': [80, 100], 'color': '#c8f7c5'}],
+                       'bar': {'color': '#2ecc71'}}))
+            col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # 📋 SERVICES TAB
@@ -233,7 +258,6 @@ with tab_services:
         fig.update_layout(height=450, margin=dict(l=5, r=5, t=30, b=5))
         st.plotly_chart(fig, use_container_width=True)
 
-    # الأمانة العامة (كل المراكز)
     if role == "admin" and target_center == "All Centers (Master)":
         combined = []
         for c, info in USER_KEYS.items():
@@ -250,16 +274,13 @@ with tab_services:
                     CES=("Dim6.2", series_to_percent),
                     Sample_Size=("SERVICE_name", "count")
                 ).reset_index()
-                service_summary = service_summary.sort_values("CSAT", ascending=False)
                 plot_service_table(service_summary)
                 fig = px.bar(service_summary, x="SERVICE_name", y="CSAT", color="Center",
                              title="الخدمات حسب المركز (CSAT)",
                              color_discrete_sequence=PASTEL)
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.warning("⚠️ لا يوجد عمود SERVICE_name في البيانات.")
-        else:
-            st.warning("⚠️ لا توجد ملفات مراكز.")
+                st.warning("⚠️ لا يوجد عمود SERVICE_name.")
     else:
         if "SERVICE_name" in df.columns:
             service_summary = df.groupby("SERVICE_name").agg(
@@ -276,6 +297,18 @@ with tab_services:
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الملاحظات (Pareto)")
+
+    # دمج كل المراكز إذا كنا في All Centers
+    if role == "admin" and target_center == "All Centers (Master)":
+        combined = []
+        for c, info in USER_KEYS.items():
+            if c == "Executive Council": continue
+            if Path(info["file"]).exists():
+                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
+                combined.append(dfc)
+        if combined:
+            df = pd.concat(combined, ignore_index=True)
+
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["unsat","comment","ملاحظ","reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي.")
