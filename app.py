@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10
+Customer Satisfaction Dashboard — v10.1 (Stable)
 Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
@@ -49,8 +49,15 @@ center_options = list(USER_KEYS.keys())
 st.sidebar.header("🏢 اختر المركز / Select Center")
 selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
+# 🧠 تأمين حالة الجلسة
 if "authorized" not in st.session_state:
-    st.session_state.update({"authorized": False, "center": None, "role": None})
+    st.session_state["authorized"] = False
+if "center" not in st.session_state:
+    st.session_state["center"] = None
+if "role" not in st.session_state:
+    st.session_state["role"] = None
+if "file" not in st.session_state:
+    st.session_state["file"] = None
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔑 كلمة المرور / Password")
@@ -71,7 +78,9 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.warning("يرجى إدخال كلمة المرور.")
         st.stop()
 
-center, role = st.session_state["center"], st.session_state["role"]
+center = st.session_state.get("center")
+role = st.session_state.get("role")
+
 st.markdown(f"### 📊 لوحة مركز {center}")
 
 # =========================================================
@@ -247,17 +256,14 @@ with tab_kpis:
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
-
     service_candidates = [c for c in df.columns if re.search(r'(serv|خدم)', c, re.IGNORECASE)]
     if not service_candidates:
         st.warning("⚠️ لم يتم العثور على عمود للخدمات.")
         st.info(f"الأعمدة المتوفرة: {', '.join(df.columns)}")
         st.stop()
-
     service_col = service_candidates[0]
     name_candidates = [c for c in df.columns if re.search(r'(name|arabic|english|اسم)', c, re.IGNORECASE) and re.search(r'(serv|خدم)', c, re.IGNORECASE)]
     service_display_col = name_candidates[0] if name_candidates else service_col
-
     service_summary = (
         df.groupby(service_display_col)
           .agg(CSAT=("Dim6.1", series_to_percent),
@@ -266,16 +272,13 @@ with tab_services:
           .reset_index()
           .sort_values("CSAT", ascending=False)
     )
-
     service_summary["التصنيف اللوني"] = np.select(
         [service_summary["CSAT"] >= 80, service_summary["CSAT"] >= 60],
         ["🟢 مرتفع", "🟡 متوسط"],
         default="🔴 منخفض"
     )
-
     st.dataframe(service_summary[["التصنيف اللوني", service_display_col, "عدد_الردود", "CSAT", "CES"]],
                  use_container_width=True)
-
     fig_bar = px.bar(service_summary, x=service_display_col, y="CSAT",
                      text="عدد_الردود", color="التصنيف اللوني",
                      color_discrete_map={"🟢 مرتفع":"#c8f7c5","🟡 متوسط":"#fcf3cf","🔴 منخفض":"#f5b7b1"},
