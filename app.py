@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.3 (Executive Edition)
+Customer Satisfaction Dashboard — v8.4 (Executive Edition)
 Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
@@ -133,24 +133,6 @@ def detect_nps(df_in):
     return (promoters - detractors) / len(s) * 100
 
 # =========================================================
-# LOOKUP TABLES
-# =========================================================
-lookup_path = Path("Data_tables.xlsx")
-if lookup_path.exists():
-    try:
-        xls = pd.ExcelFile(lookup_path)
-        for sheet in xls.sheet_names:
-            tbl = pd.read_excel(xls, sheet_name=sheet)
-            tbl.columns = [c.strip().upper() for c in tbl.columns]
-            lang_col = "ARABIC" if lang == "العربية" else "ENGLISH"
-            merge_key = "CODE" if "CODE" in tbl.columns else tbl.columns[0]
-            if lang_col in tbl.columns and merge_key in df.columns:
-                df = df.merge(tbl[[merge_key, lang_col]], how="left", left_on=merge_key, right_on=merge_key)
-                df.rename(columns={lang_col: f"{merge_key}_name"}, inplace=True)
-    except Exception as e:
-        st.warning(f"⚠️ خطأ أثناء تحميل ملفات lookup: {e}")
-
-# =========================================================
 # FILTERS
 # =========================================================
 filter_cols = [c for c in df.columns if c.endswith("_name") and c.upper() in ["GENDER_NAME","SERVICE_NAME","SECTOR_NAME","NATIONALITY_NAME","CENTER_NAME"]]
@@ -231,7 +213,7 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB
+# 📋 SERVICES TAB (مع حجم العينة)
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
@@ -249,13 +231,15 @@ with tab_services:
                        fill_color=[[c for c in df_plot["CSAT_color"]] for _ in df_plot.columns],
                        align='center', font=dict(size=12)))
         ])
-        fig.update_layout(height=400, margin=dict(l=5, r=5, t=30, b=5))
+        fig.update_layout(height=450, margin=dict(l=5, r=5, t=30, b=5))
         st.plotly_chart(fig, use_container_width=True)
+
     if "SERVICE_name" in df.columns:
         service_summary = df.groupby("SERVICE_name").agg({
             "Dim6.1": series_to_percent,
-            "Dim6.2": series_to_percent
-        }).reset_index().rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES"})
+            "Dim6.2": series_to_percent,
+            "SERVICE_name": "count"
+        }).rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES", "SERVICE_name": "Sample_Size"}).reset_index()
         service_summary = service_summary.sort_values(by="CSAT", ascending=False)
         plot_service_table(service_summary)
     else:
