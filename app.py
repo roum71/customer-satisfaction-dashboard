@@ -1,16 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup Edition)
-- Full analytics (Sample, KPIs, Dimensions, NPS, Pareto)
-- Secure login by center / admin
-- Integrated lookup tables and filters
-- Excel export per center
+Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup + Fixed KPIs)
 """
 
-# =========================================================
-# 📦 Import Libraries
-# =========================================================
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -58,23 +51,18 @@ st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🌐 Language Selection
+# 🌐 Language
 # =========================================================
 lang = st.sidebar.radio("🌍 اللغة / Language", ["العربية", "English"], index=0)
-rtl = True if lang == "العربية" else False
-if rtl:
+if lang == "العربية":
     st.markdown("""
         <style>
-        html, body, [class*="css"] {
-            direction: rtl;
-            text-align: right;
-            font-family: "Tajawal", "Cairo", "Segoe UI", sans-serif;
-        }
+        html, body, [class*="css"] {direction:rtl;text-align:right;font-family:"Tajawal","Cairo","Segoe UI";}
         </style>
     """, unsafe_allow_html=True)
 
 # =========================================================
-# 🔑 Login Section
+# 🔑 Login
 # =========================================================
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
@@ -101,7 +89,7 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.session_state["center"] = selected_center
         st.session_state["role"] = USER_KEYS[selected_center]["role"]
         st.session_state["file"] = USER_KEYS[selected_center]["file"]
-        st.success(f"✅ تم تسجيل الدخول بنجاح كمركز: {selected_center}")
+        st.success(f"✅ تم تسجيل الدخول كمركز: {selected_center}")
         st.rerun()
     elif password:
         st.error("🚫 كلمة المرور غير صحيحة.")
@@ -117,7 +105,7 @@ role = st.session_state["role"]
 # 📥 Load Data
 # =========================================================
 if role == "admin":
-    st.markdown("### 🏛️ وضع الأمانة العامة (Admin Mode)")
+    st.markdown("### 🏛️ وضع الأمانة العامة")
     target_center = st.selectbox(
         "اختر المركز:",
         ["All Centers (Master)"] + [c for c in USER_KEYS.keys() if c != "Executive Council"],
@@ -130,7 +118,7 @@ if role == "admin":
 else:
     file_path = USER_KEYS[center]["file"]
     st.markdown(f"### 📊 لوحة مركز {center}")
-    st.info("📂 يتم تحميل البيانات تلقائيًا من الملف المرتبط بالمركز.")
+    st.info("📂 يتم تحميل البيانات الخاصة بالمركز فقط.")
 
 try:
     df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
@@ -154,27 +142,25 @@ if lookup_path.exists():
         except Exception as e:
             st.warning(f"⚠️ لم يتم تحميل ورقة {sheet}: {e}")
 else:
-    st.error("❌ ملف Data_tables.xlsx غير موجود في نفس المجلد.")
+    st.error("❌ ملف Data_tables.xlsx غير موجود.")
     st.stop()
 
 # =========================================================
-# 🔄 Merge Lookup Tables Automatically
+# 🔄 Merge Lookup Tables (fixed)
 # =========================================================
 for col in df.columns:
-    if col.upper() in lookup_catalog:
-        tbl = lookup_catalog[col.upper()]
-        if "CODE" in tbl.columns:
-            merge_col = "CODE"
-        else:
-            merge_col = tbl.columns[0]
+    col_upper = col.strip().upper()
+    if col_upper in lookup_catalog:
+        tbl = lookup_catalog[col_upper]
+        merge_key = "CODE" if "CODE" in tbl.columns else tbl.columns[0]
         lang_col = "ARABIC" if lang == "العربية" else "ENGLISH"
         if lang_col in tbl.columns:
-            df = df.merge(tbl[[merge_col, lang_col]], how="left", left_on=col, right_on=merge_col)
+            df = df.merge(tbl[[merge_key, lang_col]], how="left", left_on=col, right_on=merge_key)
             df.rename(columns={lang_col: f"{col}_name"}, inplace=True)
-            df.drop(columns=[merge_col], inplace=True, errors="ignore")
+            df.drop(columns=[merge_key], inplace=True, errors="ignore")
 
 # =========================================================
-# 🎛️ Sidebar Filters
+# 🎛️ Filters
 # =========================================================
 st.sidebar.header("🎛️ عناصر التصفية")
 filter_cols = [c for c in df.columns if c.endswith("_name")]
@@ -189,7 +175,7 @@ if df.empty:
     st.stop()
 
 # =========================================================
-# 🧠 Helper Functions
+# 🧠 Helpers
 # =========================================================
 def series_to_percent(vals: pd.Series) -> float:
     vals = pd.to_numeric(vals, errors="coerce").dropna()
@@ -222,7 +208,7 @@ tab_sample, tab_kpis, tab_dims, tab_nps, tab_pareto = st.tabs(
 )
 
 # =========================================================
-# 📈 Tab: Sample
+# 📈 Sample
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
@@ -232,24 +218,26 @@ with tab_sample:
         counts.columns = [col, "Count"]
         fig = px.pie(counts, names=col, values="Count", color_discrete_sequence=PASTEL)
         charts.append(fig)
-    for i, fig in enumerate(charts):
+    for fig in charts:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 Tab: KPIs
+# 📊 KPIs (fixed logic)
 # =========================================================
 with tab_kpis:
-    st.subheader("📊 المؤشرات الرئيسية")
-    csat = series_to_percent(df.select_dtypes(include=np.number).mean(axis=1))
-    ces = series_to_percent(df.select_dtypes(include=np.number).median(axis=1))
-    nps = detect_nps(df)
+    st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
+    csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
+    ces  = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
+    nps  = detect_nps(df)
+
     c1, c2, c3 = st.columns(3)
     c1.metric("😊 CSAT (%)", f"{csat:.2f}" if not np.isnan(csat) else "N/A")
     c2.metric("⭐ CES (%)", f"{ces:.2f}" if not np.isnan(ces) else "N/A")
     c3.metric("🎯 NPS", f"{nps:.2f}" if not np.isnan(nps) else "N/A")
+    st.caption(f"📄 عدد الردود: {len(df):,}")
 
 # =========================================================
-# 📉 Tab: Dimensions
+# 📉 Dimensions
 # =========================================================
 with tab_dims:
     st.subheader("📉 الأبعاد")
@@ -268,7 +256,7 @@ with tab_dims:
         st.info("⚠️ لم يتم العثور على أعمدة Dim1–Dim6.")
 
 # =========================================================
-# 🎯 Tab: NPS
+# 🎯 NPS
 # =========================================================
 with tab_nps:
     st.subheader("🎯 صافي نقاط الترويج (NPS)")
@@ -285,7 +273,7 @@ with tab_nps:
         st.info("⚠️ لا يوجد عمود NPS في البيانات.")
 
 # =========================================================
-# 💬 Tab: Pareto
+# 💬 Pareto
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الشكاوى (Pareto)")
@@ -325,7 +313,6 @@ with tab_pareto:
         fig.update_layout(yaxis=dict(title="Count"), yaxis2=dict(title="Cum%", overlaying="y", side="right"))
         st.plotly_chart(fig, use_container_width=True)
 
-        # === Excel Export ===
         if st.button("⬇️ تنزيل تقرير Excel"):
             ts = datetime.now().strftime("%Y-%m-%d")
             out_name = f"Report_{center.replace(' ', '_')}_{ts}.xlsx"
