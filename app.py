@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.1
-Full Secure + Center Comparison + Lookup + Gauges + Smart Filters + Sorted Services + Pareto + Data Export
+Customer Satisfaction Dashboard — v8.2 (Executive Edition)
+Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
 import streamlit as st
@@ -10,8 +10,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import io
-import re
+import io, re, os
 from datetime import datetime
 from pathlib import Path
 
@@ -23,13 +22,13 @@ USER_KEYS = {
     "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
     "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
     "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
-    "Executive Council": {"password": "admin2025", "role": "admin", "file": None},
+    "Executive Council": {"password": "admin2025", "role": "admin", "file": None},  # الأمانة العامة
 }
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 8.1", layout="wide")
+st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 8.2", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
@@ -83,6 +82,12 @@ center, role = st.session_state["center"], st.session_state["role"]
 # =========================================================
 # LOAD DATA
 # =========================================================
+def safe_read(file):
+    try:
+        return pd.read_csv(file, encoding="utf-8", low_memory=False)
+    except Exception:
+        return None
+
 if role == "admin":
     st.markdown("### 🏛️ وضع الأمانة العامة")
     target_center = st.selectbox("اختر المركز:", ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"])
@@ -91,10 +96,9 @@ else:
     file_path = USER_KEYS[center]["file"]
     st.markdown(f"### 📊 لوحة مركز {center}")
 
-try:
-    df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
-except Exception as e:
-    st.error(f"❌ تعذر تحميل الملف: {e}")
+df = safe_read(file_path)
+if df is None:
+    st.error(f"❌ تعذر تحميل الملف: {file_path}")
     st.stop()
 
 # =========================================================
@@ -215,6 +219,49 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
+# 📋 SERVICES TAB (ADMIN OR CENTER)
+# =========================================================
+with tab_services:
+    st.subheader("📋 تحليل الخدمات")
+
+    if role == "admin":
+        combined = []
+        for c, info in USER_KEYS.items():
+            if info["file"] and Path(info["file"]).exists():
+                df_c = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
+                df_c["Center"] = c
+                combined.append(df_c)
+        if combined:
+            all_df = pd.concat(combined, ignore_index=True)
+            if "SERVICE_name" in all_df.columns:
+                service_summary = all_df.groupby(["Center","SERVICE_name"]).agg({
+                    "Dim6.1": series_to_percent,
+                    "Dim6.2": series_to_percent
+                }).reset_index()
+                service_summary["CSAT_color"] = np.where(service_summary["Dim6.1"]>=80,"#c8f7c5",
+                                               np.where(service_summary["Dim6.1"]>=60,"#fcf3cf","#f5b7b1"))
+                st.dataframe(service_summary.style.background_gradient(subset=["Dim6.1"], cmap="Greens"), use_container_width=True)
+
+                fig = px.bar(service_summary.sort_values("Dim6.1", ascending=False),
+                             x="SERVICE_name", y="Dim6.1", color="Center",
+                             title="الخدمات مرتبة حسب مؤشر CSAT",
+                             color_discrete_sequence=PASTEL)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("⚠️ لم يتم العثور على عمود SERVICE_name في الملفات.")
+        else:
+            st.warning("⚠️ لا توجد ملفات مراكز صالحة للعرض.")
+    else:
+        if "SERVICE_name" in df.columns:
+            service_summary = df.groupby("SERVICE_name").agg({
+                "Dim6.1": series_to_percent,
+                "Dim6.2": series_to_percent
+            }).reset_index()
+            st.dataframe(service_summary.style.background_gradient(subset=["Dim6.1"], cmap="Greens"), use_container_width=True)
+        else:
+            st.warning("⚠️ لا توجد بيانات خدمات في هذا المركز.")
+
+# =========================================================
 # 🏛️ CENTER COMPARISON TAB
 # =========================================================
 with tab_compare:
@@ -222,23 +269,25 @@ with tab_compare:
 
     try:
         df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
-        df_master = df_master[["Center", "CSAT", "CES", "NPS"]]
-        df_master = df_master.sort_values(by="CSAT", ascending=False)
-        st.dataframe(df_master.style.format({"CSAT":"{:.1f}","CES":"{:.1f}","NPS":"{:.1f}"}), use_container_width=True)
+
+        # اكتشاف الأعمدة تلقائياً
+        col_map = {}
+        for c in df_master.columns:
+            c_low = c.lower().strip()
+            if "center" in c_low: col_map[c] = "Center"
+            elif "csat" in c_low: col_map[c] = "CSAT"
+            elif "ces" in c_low: col_map[c] = "CES"
+            elif "nps" in c_low: col_map[c] = "NPS"
+        df_master.rename(columns=col_map, inplace=True)
+
+        df_master = df_master[["Center","CSAT","CES","NPS"]].sort_values(by="CSAT", ascending=False)
+        st.dataframe(df_master, use_container_width=True)
 
         fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
                      color_continuous_scale=["#f5b7b1","#fcf3cf","#c8f7c5"], title="ترتيب المراكز حسب CSAT")
         st.plotly_chart(fig, use_container_width=True)
-
-        # 📥 Export comparison
-        buffer = io.BytesIO()
-        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-            df_master.to_excel(writer, index=False, sheet_name="Center_Comparison")
-        st.download_button("📥 تنزيل مقارنة المراكز (Excel)", data=buffer.getvalue(),
-                           file_name=f"Centers_Comparison_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except Exception as e:
-        st.warning(f"⚠️ تعذر تحميل ملف Centers_Master.csv: {e}")
+        st.warning(f"⚠️ تعذر تحميل ملف المقارنة: {e}")
 
 # =========================================================
 # 💬 PARETO TAB
@@ -252,21 +301,19 @@ with tab_pareto:
         df["__clean"]=df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]"," ",regex=True)
         df["__clean"]=df["__clean"].replace(r"\s+"," ",regex=True).str.strip()
 
-        empty_terms={""," ","لا يوجد","لايوجد","لا يوجد شيء","لا شي","لا شيء","مافي","ما في","ماشي","لا أعلم","no","none","nothing","nothing to say","good","ok","fine","ممتاز","جيد","تمام"}
+        empty_terms={""," ","لا يوجد","لايوجد","لا شيء","no","none","nothing","جيد","ممتاز","ok"}
         df=df[~df["__clean"].isin(empty_terms)]
         df=df[df["__clean"].apply(lambda x: len(x.split())>=3)]
 
         themes={
-            "Parking / مواقف السيارات":["موقف","مواقف","باركن","parking","السيارات"],
-            "Waiting / الانتظار":["انتظار","بطء","delay","slow","long"],
-            "Staff / الموظفون":["موظف","موظفين","تعامل","المعاملة","staff"],
-            "Fees / الرسوم":["رسوم","دفع","fee","payment","expensive","cost"],
-            "Process / الإجراءات":["اجراء","الإجراءات","انجاز","process","steps"],
-            "Platform / المنصة":["تطبيق","app","system","portal","website","النظام","الرد","support"],
-            "Facility / المكان":["مكان","قسم","المكاتب","نظافة","ازدحام","facility"],
-            "Appointments / المواعيد":["موعد","schedule","time","booking"],
-            "Communication / التواصل":["رد","تواصل","اتصال","call","response"],
-            "Availability / التوفر":["لا يوجد","عدم","no","none","nothing","توفر"]
+            "Parking / مواقف السيارات":["موقف","مواقف","parking","السيارات"],
+            "Waiting / الانتظار":["انتظار","بطء","delay","slow"],
+            "Staff / الموظفون":["موظف","تعامل","staff"],
+            "Fees / الرسوم":["رسوم","دفع","fee"],
+            "Process / الإجراءات":["اجراء","process","انجاز"],
+            "Platform / المنصة":["تطبيق","app","system","website"],
+            "Facility / المكان":["مكان","نظافة","ازدحام"],
+            "Communication / التواصل":["رد","تواصل","اتصال"]
         }
 
         def classify_theme(t):
