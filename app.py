@@ -2,10 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Customer Satisfaction Dashboard — v7.4.4 Light (Unified, OneDrive Edition)
-- Unified app for centers and Executive Council
-- Reads data from OneDrive download links or local sources
-- Auto-detect lookup columns
-- Admin can view all centers in tabs or combined master report
+- Single codebase for Admin & Centers
+- Admin sees all centers (tabs + master view)
+- Centers see only their data, no file selection
 """
 
 import streamlit as st
@@ -23,7 +22,6 @@ import zipfile
 # 🔒 نظام حماية المراكز وصلاحيات الأمانة العامة
 # =========================================================
 
-# تعريف المستخدمين والصلاحيات
 USER_KEYS = {
     "Public Services Department": {"password": "psd2025", "role": "center"},
     "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center"},
@@ -32,7 +30,9 @@ USER_KEYS = {
     "Executive Council": {"password": "admin2025", "role": "admin"},  # الأمانة العامة
 }
 
-# اختيار المركز
+# ------------------------------------------
+# اختيار المركز من الرابط أو القائمة الجانبية
+# ------------------------------------------
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
 center_options = list(USER_KEYS.keys())
@@ -43,7 +43,9 @@ else:
     st.sidebar.header("🏢 اختيار المركز / Select Center")
     selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
-# التحقق من الجلسة
+# ------------------------------------------
+# التحقق من الجلسة وكلمة المرور
+# ------------------------------------------
 if "authorized" not in st.session_state:
     st.session_state["authorized"] = False
 if "center" not in st.session_state:
@@ -51,7 +53,6 @@ if "center" not in st.session_state:
 if "role" not in st.session_state:
     st.session_state["role"] = None
 
-# إدخال كلمة المرور والتحقق
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔑 كلمة المرور / Password")
     password = st.sidebar.text_input("Password", type="password")
@@ -69,34 +70,21 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.warning("🔐 يرجى إدخال كلمة المرور.")
         st.stop()
 
-# =========================================================
-# ✅ بعد التحقق - تحديد ما يمكن عرضه
-# =========================================================
+# ------------------------------------------
+# بعد التحقق من الدخول
+# ------------------------------------------
 role = st.session_state["role"]
 center = st.session_state["center"]
 
 st.sidebar.success(f"تم تسجيل الدخول كمركز: {center}")
 
-
 # =========================================================
-# 📁 تحديد ملف البيانات حسب المركز أو صلاحية الأمانة العامة
+# 📁 تحديد ملف البيانات حسب الدور والصلاحية
 # =========================================================
-
-# 🔒 إخفاء أي خيار لتحميل الملفات — النظام يحدد الملف تلقائيًا
-st.markdown(
-    """
-    <style>
-    [data-testid="stFileUploader"], [data-testid="stDownloadButton"], [data-testid="stSelectbox"] label:contains("OneDrive"), div:has(> label:contains("OneDrive")) {
-        display: none !important;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
 
 if role == "admin":
-    st.markdown("### 🏛️ وضع الأمانة العامة — عرض جميع المراكز")
-    st.info("يمكنك الوصول إلى جميع بيانات المراكز في تبويبات مستقلة أو في تقرير موحد.")
+    st.markdown("### 🏛️ وضع الأمانة العامة — الوصول الكامل")
+    st.info("يمكنك الوصول إلى جميع بيانات المراكز في تبويبات مستقلة أو في ملف تجميعي واحد.")
 
     tabs = st.tabs([
         "📊 دائرة الخدمات العامة",
@@ -109,35 +97,35 @@ if role == "admin":
     with tabs[0]:
         st.subheader("📈 دائرة الخدمات العامة")
         selected_file = "Center_Public_Services.csv"
-        st.success("تم تحميل بيانات دائرة الخدمات العامة تلقائيًا ✅")
+        st.success("✅ تم تحميل بيانات دائرة الخدمات العامة.")
         # show_dashboard(selected_file)
 
     with tabs[1]:
         st.subheader("📈 بلدية رأس الخيمة")
         selected_file = "Center_RAK_Municipality.csv"
-        st.success("تم تحميل بيانات بلدية رأس الخيمة تلقائيًا ✅")
+        st.success("✅ تم تحميل بيانات بلدية رأس الخيمة.")
         # show_dashboard(selected_file)
 
     with tabs[2]:
-        st.subheader("📈 مركز الشيخ سعود - المحاكم")
+        st.subheader("📈 مركز الشيخ سعود - محاكم رأس الخيمة")
         selected_file = "Center_Sheikh_Saud_Courts.csv"
-        st.success("تم تحميل بيانات مركز الشيخ سعود تلقائيًا ✅")
+        st.success("✅ تم تحميل بيانات مركز الشيخ سعود.")
         # show_dashboard(selected_file)
 
     with tabs[3]:
-        st.subheader("📈 مركز الشيخ صقر - المحاكم")
+        st.subheader("📈 مركز الشيخ صقر - محاكم رأس الخيمة")
         selected_file = "Center_Sheikh_Saqr_Courts.csv"
-        st.success("تم تحميل بيانات مركز الشيخ صقر تلقائيًا ✅")
+        st.success("✅ تم تحميل بيانات مركز الشيخ صقر.")
         # show_dashboard(selected_file)
 
     with tabs[4]:
-        st.subheader("🌐 تقرير الأمانة العامة (كل المراكز)")
+        st.subheader("🌐 تقرير الأمانة العامة - كل المراكز")
         selected_file = "Centers_Master.csv"
-        st.success("تم تحميل الملف الموحد لجميع المراكز ✅")
+        st.success("✅ تم تحميل الملف الموحد لجميع المراكز.")
         # show_dashboard(selected_file)
 
 else:
-    # 🔒 المستخدم العادي يرى فقط بيانات مركزه دون أي واجهة اختيار
+    # 🔒 المستخدم العادي يرى فقط مركزه
     if center == "Public Services Department":
         selected_file = "Center_Public_Services.csv"
     elif center == "Ras Al Khaimah Municipality":
@@ -150,9 +138,15 @@ else:
         st.error("⚠️ لا يوجد ملف بيانات مرتبط بهذا المركز.")
         st.stop()
 
-    st.sidebar.success(f"📂 تم تحميل بيانات المركز تلقائيًا: {center}")
-    st.success(f"✅ تم تحميل ملف {selected_file} بنجاح.")
+    # لا عرض لأي عناصر تحميل أو رفع
+    st.sidebar.empty()
+    st.sidebar.success(f"📂 تم تحميل بيانات المركز تلقائيًا.")
+    st.info(f"✅ الملف المستخدم: {selected_file}")
     # show_dashboard(selected_file)
+
+# =========================================================
+# 🧠 هنا يبدأ الكود الرئيسي لتحميل الملف وتحليل البيانات
+# =========================================================
 
 # =========================================================
 # 🧠 هنا يبدأ الكود الرئيسي لتحميل الملف وتحليل البيانات
@@ -770,6 +764,7 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
 
