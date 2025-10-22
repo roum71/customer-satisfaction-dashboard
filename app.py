@@ -320,7 +320,19 @@ with tab_compare:
             elif "nps" in c_low: col_map[c] = "NPS"
         df_master.rename(columns=col_map, inplace=True)
 
-        df_master = df_master[["Center","CSAT","CES","NPS"]].sort_values(by="CSAT", ascending=False)
+       expected_cols = ["Center", "CSAT", "CES", "NPS"]
+existing = [c for c in expected_cols if c in df_master.columns]
+if existing:
+    df_master = df_master[existing].sort_values(by=existing[1], ascending=False)
+else:
+    st.warning(f"⚠️ لم يتم العثور على الأعمدة المطلوبة في الملف. الأعمدة المتاحة: {', '.join(df_master.columns)}")
+    st.stop()
+
+
+
+
+
+        
         plot_center_table(df_master)
 
         fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
@@ -381,4 +393,5 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
