@@ -250,42 +250,77 @@ with tab_services:
         st.warning("⚠️ لا يوجد عمود SERVICE_name في البيانات.")
 
 # =========================================================
-# 💬 PARETO ANALYSIS
+# 💬 PARETO ANALYSIS (Improved Themes + Smart Filtering)
 # =========================================================
 with tab_pareto:
-    st.subheader("💬 تحليل نصوص الملاحظات (Pareto)")
-    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","شكوى","reason","unsat"])]
+    st.subheader("💬 تحليل نصوص الملاحظات (Pareto المحاور الفعلية)")
+
+    # تحديد العمود النصي
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["most_unsat", "comment", "ملاحظ", "شكوى", "reason"])]
     if text_cols:
         col = text_cols[0]
-        df["__clean"] = df[col].astype(str).str.lower().replace(r"[^\u0600-\u06FFA-Za-z0-9\s]","",regex=True)
-        df = df[~df["__clean"].isin(["","لا يوجد","none","no","nothing"])]
 
+        # تنظيف النصوص
+        df["__clean"] = df[col].astype(str).str.lower()
+        df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
+        df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
+
+        # استبعاد العبارات العامة غير المفيدة
+        empty_terms = {
+            "", " ", "لا يوجد", "لايوجد", "لا يوجد شيء", "لا شي", "لا شيء", "مافي", "ما في", "ماشي",
+            "لا أعلم", "no", "none", "nothing", "nothing to say", "nothing specific",
+            "nothing particular", "good", "everything fine", "ok", "fine", "nothing wrong",
+            "everything okay", "all good", "perfect", "ممتاز", "جيد", "تمام"
+        }
+        df = df[~df["__clean"].isin(empty_terms)]
+        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+
+        # المحاور المستخلصة من ملفك الفعلي
         themes = {
-            "Waiting / الانتظار":["انتظار","delay","بطء"],
-            "Staff / الموظفون":["موظف","staff","تعامل"],
-            "Fees / الرسوم":["رسوم","fee","cost"],
-            "Process / الإجراءات":["اجراء","process","انجاز"],
-            "Service / الخدمة":["خدم","service","جودة"],
-            "Platform / المنصة":["تطبيق","app","website","system"]
+            "Parking / مواقف السيارات": ["موقف", "مواقف", "باركن", "parking", "السيارات", "الباركنات"],
+            "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow", "وقت", "long"],
+            "Staff / الموظفون": ["موظف", "موظفين", "تعامل", "المعاملة", "staff", "attitude", "behavior"],
+            "Fees / الرسوم": ["رسوم", "دفع", "fee", "payment", "expensive", "cost"],
+            "Process / الإجراءات": ["اجراء", "الإجراءات", "انجاز", "المعاملات", "process", "steps"],
+            "Platform / المنصة": ["تطبيق", "app", "system", "portal", "website", "النظام", "الرد", "support"],
+            "Facility / المكان": ["مكان", "قسم", "المكاتب", "نظافة", "ازدحام", "comfort", "facility"],
+            "Appointments / المواعيد": ["موعد", "schedule", "time", "booking"],
+            "Communication / التواصل": ["رد", "تواصل", "اتصال", "call", "response", "communication"],
+            "Availability / التوفر": ["لا يوجد", "لايوجد", "عدم", "no", "none", "nothing", "توفير", "توفر"],
         }
 
-        def classify(t):
+        # التصنيف حسب الكلمات المفتاحية
+        def classify_theme(t):
             for th, ws in themes.items():
-                if any(w in t for w in ws): return th
+                if any(w in t for w in ws):
+                    return th
             return "Other / أخرى"
 
-        df["Theme"] = df["__clean"].apply(classify)
-        df = df[df["Theme"]!="Other / أخرى"]
-        counts = df["Theme"].value_counts().reset_index()
-        counts.columns = ["Theme","Count"]
-        counts["%"] = counts["Count"]/counts["Count"].sum()*100
-        counts["Cum%"] = counts["%"].cumsum()
-        counts["Color"] = np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+        df["Theme"] = df["__clean"].apply(classify_theme)
+        df = df[df["Theme"] != "Other / أخرى"]
 
+        # إحصاء النتائج
+        counts = df["Theme"].value_counts().reset_index()
+        counts.columns = ["Theme", "Count"]
+        counts["%"] = counts["Count"] / counts["Count"].sum() * 100
+        counts["Cum%"] = counts["%"].cumsum()
+
+        # تمييز الجزء الذي يمثل 80% باللون الأحمر
+        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
+
+        # عرض الجدول
+        st.dataframe(counts.style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}))
+
+        # رسم Pareto
         fig = go.Figure()
         fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="Count")
         fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="Cumulative %", yaxis="y2", mode="lines+markers")
-        fig.update_layout(yaxis=dict(title="Count"), yaxis2=dict(title="Cum%", overlaying="y", side="right"))
+        fig.update_layout(
+            title="Pareto — المحاور الرئيسية",
+            yaxis=dict(title="عدد الملاحظات"),
+            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
+            bargap=0.2
+        )
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
