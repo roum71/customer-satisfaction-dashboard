@@ -163,11 +163,8 @@ with tab_data:
 # 📈 توزيع العينة
 # =========================================================
 
-
-
-
 # =========================================================
-# 📈 توزيع العينة (خيارات متعددة)
+# 📈 توزيع العينة (خيارات متعددة - أعداد فقط)
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة حسب الفئات المحددة")
@@ -178,104 +175,49 @@ with tab_sample:
 
     chart_option = st.selectbox(
         "📊 اختر نوع العرض:",
-        [
-            "مخطط دائري Pie",
-            "أعمدة عمودية Bar",
-            "أعمدة أفقية Horizontal Bar",
-            "أعمدة مكدسة Stacked Bar",
-            "مخطط تراكمي Sunburst",
-            "خريطة حرارية Heatmap",
-            "جدول شبكي Grid"
-        ],
+        ["مخطط دائري Pie","أعمدة عمودية Bar","أعمدة أفقية Horizontal Bar","أعمدة مكدسة Stacked Bar",
+         "مخطط تراكمي Sunburst","خريطة حرارية Heatmap","جدول شبكي Grid"],
         index=1
     )
 
-    # =========================================================
-    # 🥧 1. Pie Chart
-    # =========================================================
+    # فقط الأعمدة المسماة
+    named_cols = list(filters.keys())
+
     if chart_option == "مخطط دائري Pie":
-        for col in filters.keys():
+        for col in named_cols:
             counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "Count"]
-            fig = px.pie(counts, names=col, values="Count", hole=0.3,
+            counts.columns = [col, "عدد الردود"]
+            fig = px.pie(counts, names=col, values="عدد الردود", hole=0.3,
                          title=f"توزيع {col}", color_discrete_sequence=PASTEL)
             st.plotly_chart(fig, use_container_width=True)
 
-    # =========================================================
-    # 📊 2. Bar Chart (Vertical)
-    # =========================================================
     elif chart_option == "أعمدة عمودية Bar":
-        for col in filters.keys():
+        for col in named_cols:
             counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "Count"]
-            fig = px.bar(counts, x=col, y="Count", text="Count",
-                         title=f"توزيع {col}", color=col, color_discrete_sequence=PASTEL)
+            counts.columns = [col, "عدد الردود"]
+            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود",
+                         color=col, color_discrete_sequence=PASTEL,
+                         title=f"توزيع {col}")
             fig.update_traces(textposition="outside")
             st.plotly_chart(fig, use_container_width=True)
 
-    # =========================================================
-    # 📊 3. Horizontal Bar
-    # =========================================================
     elif chart_option == "أعمدة أفقية Horizontal Bar":
-        for col in filters.keys():
+        for col in named_cols:
             counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "Count"]
-            fig = px.bar(counts, y=col, x="Count", text="Count",
+            counts.columns = [col, "عدد الردود"]
+            fig = px.bar(counts, y=col, x="عدد الردود", text="عدد الردود",
                          orientation="h", color=col, color_discrete_sequence=PASTEL,
                          title=f"توزيع {col} (أفقي)")
             fig.update_traces(textposition="outside")
             st.plotly_chart(fig, use_container_width=True)
 
-    # =========================================================
-    # 📶 4. Stacked Bar (if multiple filters)
-    # =========================================================
-    elif chart_option == "أعمدة مكدسة Stacked Bar":
-        if len(filters.keys()) >= 2:
-            cols = list(filters.keys())
-            fig = px.bar(df, x=cols[0], color=cols[1],
-                         title=f"توزيع {cols[0]} حسب {cols[1]}",
-                         barmode="stack", color_discrete_sequence=PASTEL)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("⚠️ اختر على الأقل فئتين (مثل الجنس × الجنسية) لتفعيل العرض المكدس.")
-
-    # =========================================================
-    # 🌞 5. Sunburst
-    # =========================================================
-    elif chart_option == "مخطط تراكمي Sunburst":
-        if len(filters.keys()) >= 2:
-            path = list(filters.keys())[:3]  # أقصى 3 طبقات
-            fig = px.sunburst(df, path=path, color_discrete_sequence=PASTEL,
-                              title=f"مخطط تراكمي حسب {', '.join(path)}")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("⚠️ اختر على الأقل فئتين لرؤية المخطط التراكمي.")
-
-    # =========================================================
-    # 🔥 6. Heatmap
-    # =========================================================
-    elif chart_option == "خريطة حرارية Heatmap":
-        if len(filters.keys()) >= 2:
-            cols = list(filters.keys())
-            pivot = pd.crosstab(df[cols[0]], df[cols[1]])
-            fig = px.imshow(pivot, color_continuous_scale="Tealrose",
-                            title=f"خريطة حرارية بين {cols[0]} و {cols[1]}")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("⚠️ اختر فئتين (مثل الجنس × القطاع) لعرض الخريطة الحرارية.")
-
-    # =========================================================
-    # 📋 7. Grid
-    # =========================================================
     elif chart_option == "جدول شبكي Grid":
-        st.write("🧮 توزيع الردود حسب كل فئة (Grid)")
-        for col in filters.keys():
+        st.write("🧮 توزيع الردود حسب كل فئة:")
+        for col in named_cols:
             counts = df[col].value_counts().reset_index()
             counts.columns = [col, "عدد الردود"]
-            counts["النسبة %"] = (counts["عدد الردود"] / total * 100).round(1)
             st.markdown(f"#### 📊 {col}")
             st.dataframe(counts, use_container_width=True)
-
 
 # =========================================================
 # 📊 المؤشرات
@@ -304,45 +246,34 @@ with tab_kpis:
 # =========================================================
 
 
-
 # =========================================================
-# 📋 الخدمات
+# 📋 الخدمات — الأسماء وعدد الردود فقط
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
 
-    # 🔍 البحث الذكي عن عمود الخدمة
+    # تحديد عمود اسم الخدمة
     service_col = None
     for c in df.columns:
-        c_lower = c.lower().strip()
-        if any(x in c_lower for x in ["service", "خدم"]):
+        if "service_name" in c.lower() or "اسم" in c:
             service_col = c
             break
 
     if not service_col:
-        st.warning("⚠️ لم يتم العثور على عمود للخدمات.")
+        st.warning("⚠️ لا يوجد عمود اسم خدمة (SERVICE_name).")
     else:
-        # 👇 محاولة جلب الأسماء بدلاً من الأكواد (في حال توفر جدول ترجمة)
-        name_col = None
-        for col in df.columns:
-            if col.lower() in [f"{service_col.lower()}_name", "service_name", "اسم الخدمة"]:
-                name_col = col
-                break
-        display_col = name_col if name_col else service_col
-
-        # 🔹 تجميع وتحليل الخدمات
         service_summary = (
-            df.groupby(display_col)
+            df.groupby(service_col)
               .agg(
                   CSAT=("Dim6.1", series_to_percent),
                   CES=("Dim6.2", series_to_percent),
-                  عدد_الردود=(display_col, "count")
+                  عدد_الردود=(service_col, "count")
               )
               .reset_index()
               .sort_values("CSAT", ascending=False)
         )
 
-        # 🔹 إضافة عمود لون (بدون تلوين الجدول)
+        # تصنيف لوني بسيط
         service_summary["التصنيف اللوني"] = np.select(
             [
                 service_summary["CSAT"] >= 80,
@@ -352,30 +283,25 @@ with tab_services:
             default="🔴 منخفض"
         )
 
-        # 🔹 عرض الجدول
-        fig = go.Figure(data=[go.Table(
-            header=dict(values=list(service_summary.columns),
-                        fill_color="#2c3e50", align='center',
-                        font=dict(color='white', size=13)),
-            cells=dict(values=[service_summary[c] for c in service_summary.columns],
-                       align='center', font=dict(size=12)))
-        ])
-        fig.update_layout(height=500)
-        st.plotly_chart(fig, use_container_width=True)
+        # عرض الجدول
+        st.dataframe(
+            service_summary[["التصنيف اللوني", service_col, "عدد_الردود", "CSAT", "CES"]]
+            .style.format({"CSAT": "{:.1f}", "CES": "{:.1f}"}),
+            use_container_width=True
+        )
 
-        # 🔹 رسم بياني للخدمات حسب CSAT
+        # رسم بياني مبسط للخدمات
         fig_bar = px.bar(
             service_summary,
-            x=display_col, y="CSAT",
+            x=service_col, y="CSAT",
             text="عدد_الردود",
             color="التصنيف اللوني",
             color_discrete_map={"🟢 مرتفع": "#c8f7c5", "🟡 متوسط": "#fcf3cf", "🔴 منخفض": "#f5b7b1"},
-            title="مستويات رضا المتعاملين (CSAT) حسب الخدمة",
+            title="رضا المتعاملين حسب الخدمة (CSAT)",
         )
         fig_bar.update_traces(textposition="outside")
         fig_bar.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
         st.plotly_chart(fig_bar, use_container_width=True)
-
 
 # =========================================================
 # 💬 Pareto
@@ -425,5 +351,6 @@ with tab_pareto:
                           yaxis=dict(title="عدد الملاحظات"),
                           yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
         st.plotly_chart(fig, use_container_width=True)
+
 
 
