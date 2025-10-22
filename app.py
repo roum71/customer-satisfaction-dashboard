@@ -197,26 +197,72 @@ with tab_sample:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs TAB
+# 📊 KPIs TAB (CSAT / CES / NPS + SUMMARY STATS)
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
+
+    # حساب مؤشرات المركز الحالي
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
     nps = detect_nps(df)
 
-    col1, col2, col3 = st.columns(3)
-    for col, val, name in zip([col1,col2,col3],[csat,ces,nps],["CSAT","CES","NPS"]):
+    c1, c2, c3 = st.columns(3)
+    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=val if not np.isnan(val) else 0,
             title={'text': name},
-            gauge={'axis':{'range':[0,100]},
-                   'steps':[{'range':[0,60],'color':'#f5b7b1'},
-                            {'range':[60,80],'color':'#fcf3cf'},
-                            {'range':[80,100],'color':'#c8f7c5'}],
-                   'bar':{'color':'#2ecc71'}}))
+            gauge={'axis': {'range': [0, 100]},
+                   'steps': [
+                       {'range': [0, 60], 'color': '#f5b7b1'},
+                       {'range': [60, 80], 'color': '#fcf3cf'},
+                       {'range': [80, 100], 'color': '#c8f7c5'}],
+                   'bar': {'color': '#2ecc71'}}))
         col.plotly_chart(fig, use_container_width=True)
+
+    # =========================================================
+    # 📈 جدول أعلى / أدنى / متوسط القيم من ملف Centers_Master.csv
+    # =========================================================
+    try:
+        df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
+
+        # اكتشاف الأعمدة بشكل ذكي
+        col_map = {}
+        for c in df_master.columns:
+            c_low = c.lower().strip()
+            if "center" in c_low:
+                col_map[c] = "Center"
+            elif "csat" in c_low or "dim6.1" in c_low:
+                col_map[c] = "CSAT"
+            elif "ces" in c_low or "dim6.2" in c_low:
+                col_map[c] = "CES"
+            elif "nps" in c_low or "recommend" in c_low:
+                col_map[c] = "NPS"
+        df_master.rename(columns=col_map, inplace=True)
+
+        # تأكد من الأعمدة المطلوبة
+        if all(k in df_master.columns for k in ["CSAT", "CES", "NPS"]):
+            df_master[["CSAT", "CES", "NPS"]] = df_master[["CSAT", "CES", "NPS"]].apply(pd.to_numeric, errors="coerce")
+
+            summary = pd.DataFrame({
+                "المؤشر": ["CSAT", "CES", "NPS"],
+                "أعلى قيمة": [df_master["CSAT"].max(), df_master["CES"].max(), df_master["NPS"].max()],
+                "أدنى قيمة": [df_master["CSAT"].min(), df_master["CES"].min(), df_master["NPS"].min()],
+                "المتوسط": [df_master["CSAT"].mean(), df_master["CES"].mean(), df_master["NPS"].mean()]
+            }).round(1)
+
+            st.markdown("### 📋 مقارنة عامة بين المراكز")
+            st.dataframe(summary, use_container_width=True)
+        else:
+            st.warning("⚠️ ملف المقارنة لا يحتوي على الأعمدة المطلوبة (CSAT, CES, NPS).")
+
+    except Exception as e:
+        st.warning(f"⚠️ تعذر قراءة ملف المقارنة: {e}")
+
+
+
+
 
 
 
@@ -282,45 +328,6 @@ with tab_services:
             st.warning("⚠️ لا توجد بيانات خدمات في هذا المركز.")
 
 
-
-# =========================================================
-# 🏛️ CENTER COMPARISON TAB
-# =========================================================
-with tab_compare:
-    st.subheader("🏛️ مقارنة المراكز")
-
-    try:
-        df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
-
-        # 🔍 اكتشاف الأعمدة تلقائيًا (حتى لو تغيرت الأسماء)
-        col_map = {}
-        for c in df_master.columns:
-            c_low = c.lower().strip()
-            if "center" in c_low: col_map[c] = "Center"
-            elif "csat" in c_low or "dim6.1" in c_low: col_map[c] = "CSAT"
-            elif "ces" in c_low or "dim6.2" in c_low: col_map[c] = "CES"
-            elif "nps" in c_low or "recommend" in c_low: col_map[c] = "NPS"
-        df_master.rename(columns=col_map, inplace=True)
-
-        # ✅ اختيار الأعمدة الموجودة فعليًا
-        expected_cols = ["Center", "CSAT", "CES", "NPS"]
-        existing = [c for c in expected_cols if c in df_master.columns]
-        if existing:
-            df_master = df_master[existing].sort_values(by=existing[1], ascending=False)
-            st.dataframe(df_master, use_container_width=True)
-
-            fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
-                         color_continuous_scale=["#f5b7b1", "#fcf3cf", "#c8f7c5"],
-                         title="ترتيب المراكز حسب CSAT")
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning(f"⚠️ لم يتم العثور على الأعمدة المطلوبة في الملف. الأعمدة المتاحة: {', '.join(df_master.columns)}")
-
-    except Exception as e:
-        st.warning(f"⚠️ تعذر تحميل ملف المقارنة: {e}")
-
-
-
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
@@ -370,6 +377,7 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
 
