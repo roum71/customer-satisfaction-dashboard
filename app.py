@@ -54,10 +54,10 @@ st.title("📊 " + ("لوحة مؤشرات رضا المتعاملين — ال�
 ONEDRIVE_MODE = True
 
 ONEDRIVE_LINKS = {
-    "Public Services Department": "https://egarakae-my.sharepoint.com/personal/jaouadi_sspge_rak_ae/_layouts/15/download.aspx?SourceUrl=/personal/jaouadi_sspge_rak_ae/Documents/Customer_Satisfaction_Dashboard/Centers_Data/Center_Public_Services.csv",
-    "Ras Al Khaimah Municipality": "https://egarakae-my.sharepoint.com/personal/jaouadi_sspge_rak_ae/_layouts/15/download.aspx?SourceUrl=/personal/jaouadi_sspge_rak_ae/Documents/Customer_Satisfaction_Dashboard/Centers_Data/Center_RAK_Municipality.csv",
-    "Sheikh Saud Center-Ras Al Khaimah Courts": "https://egarakae-my.sharepoint.com/personal/jaouadi_sspge_rak_ae/_layouts/15/download.aspx?SourceUrl=/personal/jaouadi_sspge_rak_ae/Documents/Customer_Satisfaction_Dashboard/Centers_Data/Center_Sheikh_Saud_Courts.csv",
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": "https://egarakae-my.sharepoint.com/personal/jaouadi_sspge_rak_ae/_layouts/15/download.aspx?SourceUrl=/personal/jaouadi_sspge_rak_ae/Documents/Customer_Satisfaction_Dashboard/Centers_Data/Center_Sheikh_Saqr_Courts.csv"
+    "Public Services Department": "https://raw.githubusercontent.com/roum71/customer-satisfaction-dashboard/main/Center_Public_Services.csv",
+    "Ras Al Khaimah Municipality": "https://raw.githubusercontent.com/roum71/customer-satisfaction-dashboard/main/Center_RAK_Municipality.csv",
+    "Sheikh Saud Center-Ras Al Khaimah Courts": "https://raw.githubusercontent.com/roum71/customer-satisfaction-dashboard/main/Center_Sheikh_Saud_Courts.csv",
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": "https://raw.githubusercontent.com/roum71/customer-satisfaction-dashboard/main/Center_Sheikh_Saqr_Courts.csv"
 }
 
 
@@ -625,4 +625,5 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
