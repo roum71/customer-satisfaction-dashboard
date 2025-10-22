@@ -22,6 +22,67 @@ import re
 from datetime import datetime
 import io
 import zipfile
+# =========================================================
+# 🔒 نظام حماية المراكز - كريم الجوعادي
+# =========================================================
+import streamlit as st
+
+# قائمة المراكز وكلمات المرور الخاصة بكل مركز
+CENTER_KEYS = {
+    "Public Services Department": "psd2025",
+    "Ras Al Khaimah Municipality": "rakm2025",
+    "Sheikh Saud Center-Ras Al Khaimah Courts": "ssc2025",
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": "ssq2025",
+}
+
+# =========================================================
+# 🔹 كشف المركز من الرابط أو من القائمة الجانبية
+# =========================================================
+params = st.query_params
+center_from_link = params.get("center", [None])[0]
+center_options = list(CENTER_KEYS.keys())
+
+# إذا كان المركز مذكور في الرابط وموجود في القائمة
+if center_from_link and center_from_link in CENTER_KEYS:
+    selected_center = center_from_link
+else:
+    st.sidebar.header("🏢 اختيار المركز / Select Center")
+    selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
+
+# =========================================================
+# 🔹 التحقق من كلمة المرور وتخزين حالة الدخول
+# =========================================================
+if "authorized" not in st.session_state:
+    st.session_state["authorized"] = False
+if "center" not in st.session_state:
+    st.session_state["center"] = None
+
+if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
+    st.sidebar.subheader("🔑 كلمة المرور / Password")
+    password = st.sidebar.text_input("Password", type="password")
+
+    # التحقق من كلمة المرور
+    if password == CENTER_KEYS.get(selected_center):
+        st.session_state["authorized"] = True
+        st.session_state["center"] = selected_center
+        st.success(f"✅ تم التحقق بنجاح: {selected_center}")
+        st.experimental_rerun()
+    elif password:
+        st.error("🚫 كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.")
+        st.stop()
+    else:
+        st.warning("🔐 يرجى إدخال كلمة المرور للوصول إلى لوحة المركز.")
+        st.stop()
+
+# =========================================================
+# ✅ إذا تم التحقق بنجاح، يبدأ تحميل البيانات والتحليل
+# =========================================================
+st.sidebar.success(f"تم تسجيل الدخول كمركز: {st.session_state['center']}")
+st.markdown(f"### 📊 {st.session_state['center']} Dashboard")
+
+
+
+
 
 # ============ Optional deps for Excel logo ============
 try:
@@ -625,6 +686,7 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
 
