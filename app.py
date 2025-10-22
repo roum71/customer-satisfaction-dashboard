@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup + Fixed KPIs)
+Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup + Interactive Sample)
 """
 
 import streamlit as st
@@ -9,7 +9,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import re, io, zipfile
+import re, io
 from datetime import datetime
 from pathlib import Path
 
@@ -146,7 +146,7 @@ else:
     st.stop()
 
 # =========================================================
-# 🔄 Merge Lookup Tables (fixed)
+# 🔄 Merge Lookup Tables
 # =========================================================
 for col in df.columns:
     col_upper = col.strip().upper()
@@ -175,7 +175,7 @@ if df.empty:
     st.stop()
 
 # =========================================================
-# 🧠 Helpers
+# 🧠 Helper Functions
 # =========================================================
 def series_to_percent(vals: pd.Series) -> float:
     vals = pd.to_numeric(vals, errors="coerce").dropna()
@@ -208,28 +208,73 @@ tab_sample, tab_kpis, tab_dims, tab_nps, tab_pareto = st.tabs(
 )
 
 # =========================================================
-# 📈 Sample
+# 📈 Sample Distribution (Enhanced)
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
+
+    total_responses = len(df)
+    st.markdown(f"### 🧮 إجمالي الردود في العينة: {total_responses:,}")
+
+    display_mode = st.sidebar.radio(
+        "🎯 طريقة عرض القيم",
+        ["النسبة المئوية (%)", "العدد (Count)", "كلاهما / Both"],
+        index=0
+    )
+
+    chart_type = st.sidebar.radio(
+        "📊 نوع الرسم البياني",
+        ["دائري Pie", "أعمدة Bar"],
+        index=0
+    )
+
     charts = []
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
-        fig = px.pie(counts, names=col, values="Count", color_discrete_sequence=PASTEL)
+        counts["Percentage"] = counts["Count"] / total_responses * 100
+        title_text = f"{col.replace('_name', '')} — {total_responses:,} إجابة"
+
+        if chart_type.startswith("دائري"):
+            if display_mode.startswith("النسبة"):
+                fig = px.pie(counts, names=col, values="Percentage", title=title_text,
+                             color_discrete_sequence=PASTEL, hole=0.3)
+                fig.update_traces(textinfo="percent+label")
+            elif display_mode.startswith("العدد"):
+                fig = px.pie(counts, names=col, values="Count", title=title_text,
+                             color_discrete_sequence=PASTEL, hole=0.3)
+                fig.update_traces(textinfo="value+label")
+            else:
+                fig = px.pie(counts, names=col, values="Count", title=title_text,
+                             color_discrete_sequence=PASTEL, hole=0.3)
+                fig.update_traces(text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1),
+                                  textinfo="text+label")
+        else:
+            if display_mode.startswith("النسبة"):
+                fig = px.bar(counts, x=col, y="Percentage",
+                             text=counts["Percentage"].apply(lambda x: f"{x:.1f}%"),
+                             title=title_text, color=col, color_discrete_sequence=PASTEL)
+            elif display_mode.startswith("العدد"):
+                fig = px.bar(counts, x=col, y="Count", text="Count", title=title_text,
+                             color=col, color_discrete_sequence=PASTEL)
+            else:
+                fig = px.bar(counts, x=col, y="Count",
+                             text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1),
+                             title=title_text, color=col, color_discrete_sequence=PASTEL)
+            fig.update_traces(textposition="outside")
+
         charts.append(fig)
     for fig in charts:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs (fixed logic)
+# 📊 KPIs
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces  = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
     nps  = detect_nps(df)
-
     c1, c2, c3 = st.columns(3)
     c1.metric("😊 CSAT (%)", f"{csat:.2f}" if not np.isnan(csat) else "N/A")
     c2.metric("⭐ CES (%)", f"{ces:.2f}" if not np.isnan(ces) else "N/A")
@@ -250,7 +295,8 @@ with tab_dims:
             dims_scores[f"Dim{i}"] = series_to_percent(vals)
     if dims_scores:
         ddf = pd.DataFrame(list(dims_scores.items()), columns=["Dimension", "Score"])
-        fig = px.bar(ddf, x="Dimension", y="Score", text_auto=".1f", color="Dimension", color_discrete_sequence=PASTEL)
+        fig = px.bar(ddf, x="Dimension", y="Score", text_auto=".1f", color="Dimension",
+                     color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ لم يتم العثور على أعمدة Dim1–Dim6.")
@@ -263,11 +309,17 @@ with tab_nps:
     nps_cols = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
     if nps_cols:
         s = pd.to_numeric(df[nps_cols[0]], errors="coerce").dropna()
-        nps_buckets = pd.cut(s, bins=[0, 6, 8, 10], labels=["Detractor", "Passive", "Promoter"])
+        nps_buckets = pd.cut(s, bins=[0, 6, 8, 10],
+                             labels=["Detractor", "Passive", "Promoter"])
         pie_df = nps_buckets.value_counts().reset_index()
         pie_df.columns = ["Type", "Count"]
-        fig = px.pie(pie_df, names="Type", values="Count", color="Type",
-                     color_discrete_map={"Promoter": "#2ecc71", "Passive": "#95a5a6", "Detractor": "#e74c3c"})
+        fig = px.pie(pie_df, names="Type", values="Count",
+                     color="Type",
+                     color_discrete_map={
+                         "Promoter": "#2ecc71",
+                         "Passive": "#95a5a6",
+                         "Detractor": "#e74c3c",
+                     })
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ لا يوجد عمود NPS في البيانات.")
@@ -277,10 +329,13 @@ with tab_nps:
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الشكاوى (Pareto)")
-    text_cols = [c for c in df.columns if any(x in c.lower() for x in ["most_unsat", "comment", "ملاحظ", "شكوى", "reason"])]
+    text_cols = [c for c in df.columns if any(
+        x in c.lower() for x in ["most_unsat", "comment", "ملاحظ", "شكوى", "reason"]
+    )]
     if text_cols:
         text_col = text_cols[0]
-        df["__clean"] = df[text_col].astype(str).str.lower().replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", "", regex=True)
+        df["__clean"] = df[text_col].astype(str).str.lower().replace(
+            r"[^\u0600-\u06FFA-Za-z0-9\s]", "", regex=True)
         df = df[~df["__clean"].isin(["", "لا يوجد", "none", "no", "nothing"])]
 
         themes = {
