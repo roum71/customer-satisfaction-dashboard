@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup + Interactive Sample)
+Customer Satisfaction Dashboard — v7.4.5 (Secure + Lookup + Interactive + Pie Counts)
 """
 
 import streamlit as st
@@ -17,37 +17,17 @@ from pathlib import Path
 # 🔐 Users and Roles
 # =========================================================
 USER_KEYS = {
-    "Public Services Department": {
-        "password": "psd2025",
-        "role": "center",
-        "file": "Center_Public_Services.csv",
-    },
-    "Ras Al Khaimah Municipality": {
-        "password": "rakm2025",
-        "role": "center",
-        "file": "Center_RAK_Municipality.csv",
-    },
-    "Sheikh Saud Center-Ras Al Khaimah Courts": {
-        "password": "ssc2025",
-        "role": "center",
-        "file": "Center_Sheikh_Saud_Courts.csv",
-    },
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": {
-        "password": "ssq2025",
-        "role": "center",
-        "file": "Center_Sheikh_Saqr_Courts.csv",
-    },
-    "Executive Council": {
-        "password": "admin2025",
-        "role": "admin",
-        "file": None,
-    },
+    "Public Services Department": {"password": "psd2025", "role": "center", "file": "Center_Public_Services.csv"},
+    "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
+    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
+    "Executive Council": {"password": "admin2025", "role": "admin", "file": None},
 }
 
 # =========================================================
 # 🎨 Page Setup
 # =========================================================
-st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 7.4.4", layout="wide")
+st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 7.4.5", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
@@ -75,20 +55,18 @@ else:
     selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
 if "authorized" not in st.session_state:
-    st.session_state["authorized"] = False
-if "center" not in st.session_state:
-    st.session_state["center"] = None
-if "role" not in st.session_state:
-    st.session_state["role"] = None
+    st.session_state.update({"authorized": False, "center": None, "role": None})
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔒 كلمة المرور / Password")
     password = st.sidebar.text_input("Password", type="password")
     if password == USER_KEYS[selected_center]["password"]:
-        st.session_state["authorized"] = True
-        st.session_state["center"] = selected_center
-        st.session_state["role"] = USER_KEYS[selected_center]["role"]
-        st.session_state["file"] = USER_KEYS[selected_center]["file"]
+        st.session_state.update({
+            "authorized": True,
+            "center": selected_center,
+            "role": USER_KEYS[selected_center]["role"],
+            "file": USER_KEYS[selected_center]["file"]
+        })
         st.success(f"✅ تم تسجيل الدخول كمركز: {selected_center}")
         st.rerun()
     elif password:
@@ -98,23 +76,15 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.warning("يرجى إدخال كلمة المرور.")
         st.stop()
 
-center = st.session_state["center"]
-role = st.session_state["role"]
+center, role = st.session_state["center"], st.session_state["role"]
 
 # =========================================================
 # 📥 Load Data
 # =========================================================
 if role == "admin":
     st.markdown("### 🏛️ وضع الأمانة العامة")
-    target_center = st.selectbox(
-        "اختر المركز:",
-        ["All Centers (Master)"] + [c for c in USER_KEYS.keys() if c != "Executive Council"],
-    )
-    file_path = (
-        "Centers_Master.csv"
-        if target_center == "All Centers (Master)"
-        else USER_KEYS[target_center]["file"]
-    )
+    target_center = st.selectbox("اختر المركز:", ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"])
+    file_path = "Centers_Master.csv" if target_center == "All Centers (Master)" else USER_KEYS[target_center]["file"]
 else:
     file_path = USER_KEYS[center]["file"]
     st.markdown(f"### 📊 لوحة مركز {center}")
@@ -169,7 +139,6 @@ for col in filter_cols:
     selected = st.sidebar.multiselect(col.replace("_name", ""), options)
     if selected:
         df = df[df[col].isin(selected)]
-
 if df.empty:
     st.warning("⚠️ لا توجد بيانات بعد تطبيق الفلاتر.")
     st.stop()
@@ -179,92 +148,59 @@ if df.empty:
 # =========================================================
 def series_to_percent(vals: pd.Series) -> float:
     vals = pd.to_numeric(vals, errors="coerce").dropna()
-    if len(vals) == 0:
-        return np.nan
+    if len(vals)==0: return np.nan
     mx = vals.max()
-    if mx <= 5:
-        return ((vals - 1) / 4 * 100).mean()
-    elif mx <= 10:
-        return ((vals - 1) / 9 * 100).mean()
-    else:
-        return vals.mean()
+    if mx <= 5: return ((vals - 1)/4*100).mean()
+    elif mx <= 10: return ((vals - 1)/9*100).mean()
+    else: return vals.mean()
 
 def detect_nps(df):
     cands = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
-    if not cands:
-        return np.nan
+    if not cands: return np.nan
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
-    if len(s) == 0:
-        return np.nan
-    promoters = (s >= 9).sum()
-    detractors = (s <= 6).sum()
-    return (promoters - detractors) / len(s) * 100
+    if len(s)==0: return np.nan
+    promoters = (s >= 9).sum(); detractors = (s <= 6).sum()
+    return (promoters - detractors)/len(s)*100
 
 # =========================================================
 # 🧭 Tabs
 # =========================================================
-tab_sample, tab_kpis, tab_dims, tab_nps, tab_pareto = st.tabs(
-    ["📈 توزيع العينة", "📊 المؤشرات", "📉 الأبعاد", "🎯 NPS", "💬 Pareto"]
-)
+tab_sample, tab_kpis, tab_dims, tab_nps, tab_pareto = st.tabs(["📈 توزيع العينة","📊 المؤشرات","📉 الأبعاد","🎯 NPS","💬 Pareto"])
 
 # =========================================================
-# 📈 Sample Distribution (Enhanced)
+# 📈 Sample Distribution (Enhanced with Count in Pie)
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
-
     total_responses = len(df)
     st.markdown(f"### 🧮 إجمالي الردود في العينة: {total_responses:,}")
 
-    display_mode = st.sidebar.radio(
-        "🎯 طريقة عرض القيم",
-        ["النسبة المئوية (%)", "العدد (Count)", "كلاهما / Both"],
-        index=0
-    )
+    display_mode = st.sidebar.radio("🎯 طريقة عرض القيم",["العدد (Count)","النسبة المئوية (%)","كلاهما / Both"],index=0)
+    chart_type = st.sidebar.radio("📊 نوع الرسم البياني",["دائري Pie","أعمدة Bar"],index=0)
 
-    chart_type = st.sidebar.radio(
-        "📊 نوع الرسم البياني",
-        ["دائري Pie", "أعمدة Bar"],
-        index=0
-    )
-
-    charts = []
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
-        counts.columns = [col, "Count"]
-        counts["Percentage"] = counts["Count"] / total_responses * 100
-        title_text = f"{col.replace('_name', '')} — {total_responses:,} إجابة"
+        counts.columns = [col,"Count"]
+        counts["Percentage"] = counts["Count"]/total_responses*100
+        title_text = f"{col.replace('_name','')} — {total_responses:,} إجابة"
 
         if chart_type.startswith("دائري"):
-            if display_mode.startswith("النسبة"):
-                fig = px.pie(counts, names=col, values="Percentage", title=title_text,
-                             color_discrete_sequence=PASTEL, hole=0.3)
-                fig.update_traces(textinfo="percent+label")
-            elif display_mode.startswith("العدد"):
-                fig = px.pie(counts, names=col, values="Count", title=title_text,
-                             color_discrete_sequence=PASTEL, hole=0.3)
-                fig.update_traces(textinfo="value+label")
+            fig = px.pie(counts, names=col, values="Count", title=title_text, color_discrete_sequence=PASTEL, hole=0.3)
+            if display_mode.startswith("العدد"):
+                fig.update_traces(text=counts["Count"], textinfo="value+label")
+            elif display_mode.startswith("النسبة"):
+                fig.update_traces(text=counts["Percentage"].apply(lambda x: f"{x:.1f}%"), textinfo="text+label")
             else:
-                fig = px.pie(counts, names=col, values="Count", title=title_text,
-                             color_discrete_sequence=PASTEL, hole=0.3)
-                fig.update_traces(text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1),
-                                  textinfo="text+label")
+                fig.update_traces(text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1), textinfo="text+label")
         else:
             if display_mode.startswith("النسبة"):
-                fig = px.bar(counts, x=col, y="Percentage",
-                             text=counts["Percentage"].apply(lambda x: f"{x:.1f}%"),
-                             title=title_text, color=col, color_discrete_sequence=PASTEL)
+                fig = px.bar(counts, x=col, y="Percentage", text=counts["Percentage"].apply(lambda x: f"{x:.1f}%"), title=title_text, color=col, color_discrete_sequence=PASTEL)
             elif display_mode.startswith("العدد"):
-                fig = px.bar(counts, x=col, y="Count", text="Count", title=title_text,
-                             color=col, color_discrete_sequence=PASTEL)
+                fig = px.bar(counts, x=col, y="Count", text="Count", title=title_text, color=col, color_discrete_sequence=PASTEL)
             else:
-                fig = px.bar(counts, x=col, y="Count",
-                             text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1),
-                             title=title_text, color=col, color_discrete_sequence=PASTEL)
+                fig = px.bar(counts, x=col, y="Count", text=counts.apply(lambda x: f"{x['Count']} ({x['Percentage']:.1f}%)", axis=1), title=title_text, color=col, color_discrete_sequence=PASTEL)
             fig.update_traces(textposition="outside")
 
-        charts.append(fig)
-    for fig in charts:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
@@ -273,9 +209,9 @@ with tab_sample:
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
-    ces  = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-    nps  = detect_nps(df)
-    c1, c2, c3 = st.columns(3)
+    ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
+    nps = detect_nps(df)
+    c1,c2,c3 = st.columns(3)
     c1.metric("😊 CSAT (%)", f"{csat:.2f}" if not np.isnan(csat) else "N/A")
     c2.metric("⭐ CES (%)", f"{ces:.2f}" if not np.isnan(ces) else "N/A")
     c3.metric("🎯 NPS", f"{nps:.2f}" if not np.isnan(nps) else "N/A")
@@ -294,9 +230,8 @@ with tab_dims:
             vals = df[items].apply(pd.to_numeric, errors="coerce").stack().dropna()
             dims_scores[f"Dim{i}"] = series_to_percent(vals)
     if dims_scores:
-        ddf = pd.DataFrame(list(dims_scores.items()), columns=["Dimension", "Score"])
-        fig = px.bar(ddf, x="Dimension", y="Score", text_auto=".1f", color="Dimension",
-                     color_discrete_sequence=PASTEL)
+        ddf = pd.DataFrame(list(dims_scores.items()), columns=["Dimension","Score"])
+        fig = px.bar(ddf, x="Dimension", y="Score", text_auto=".1f", color="Dimension", color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ لم يتم العثور على أعمدة Dim1–Dim6.")
@@ -309,17 +244,11 @@ with tab_nps:
     nps_cols = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
     if nps_cols:
         s = pd.to_numeric(df[nps_cols[0]], errors="coerce").dropna()
-        nps_buckets = pd.cut(s, bins=[0, 6, 8, 10],
-                             labels=["Detractor", "Passive", "Promoter"])
+        nps_buckets = pd.cut(s, bins=[0,6,8,10], labels=["Detractor","Passive","Promoter"])
         pie_df = nps_buckets.value_counts().reset_index()
-        pie_df.columns = ["Type", "Count"]
-        fig = px.pie(pie_df, names="Type", values="Count",
-                     color="Type",
-                     color_discrete_map={
-                         "Promoter": "#2ecc71",
-                         "Passive": "#95a5a6",
-                         "Detractor": "#e74c3c",
-                     })
+        pie_df.columns = ["Type","Count"]
+        fig = px.pie(pie_df, names="Type", values="Count", color="Type",
+                     color_discrete_map={"Promoter":"#2ecc71","Passive":"#95a5a6","Detractor":"#e74c3c"})
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ لا يوجد عمود NPS في البيانات.")
@@ -328,37 +257,30 @@ with tab_nps:
 # 💬 Pareto
 # =========================================================
 with tab_pareto:
-    st.subheader("💬 تحليل نصوص الشكاوى (Pareto)")
-    text_cols = [c for c in df.columns if any(
-        x in c.lower() for x in ["most_unsat", "comment", "ملاحظ", "شكوى", "reason"]
-    )]
+    st.subheader("💬 تحليل نصي (Pareto)")
+    text_cols = [c for c in df.columns if any(x in c.lower() for x in ["comment","ملاحظ","شكوى","reason","unsat"])]
     if text_cols:
         text_col = text_cols[0]
-        df["__clean"] = df[text_col].astype(str).str.lower().replace(
-            r"[^\u0600-\u06FFA-Za-z0-9\s]", "", regex=True)
-        df = df[~df["__clean"].isin(["", "لا يوجد", "none", "no", "nothing"])]
-
+        df["__clean"] = df[text_col].astype(str).str.lower().replace(r"[^\u0600-\u06FFA-Za-z0-9\s]","",regex=True)
+        df = df[~df["__clean"].isin(["","لا يوجد","none","no","nothing"])]
         themes = {
-            "Waiting / الانتظار": ["انتظار", "delay", "بطء"],
-            "Staff / الموظفون": ["موظف", "staff", "تعامل"],
-            "Fees / الرسوم": ["رسوم", "fee", "cost"],
-            "Process / الإجراءات": ["اجراء", "process", "انجاز"],
-            "Service / الخدمة": ["خدم", "service", "جودة"],
-            "Platform / المنصة": ["تطبيق", "app", "website", "system"],
+            "Waiting / الانتظار":["انتظار","delay","بطء"],
+            "Staff / الموظفون":["موظف","staff","تعامل"],
+            "Fees / الرسوم":["رسوم","fee","cost"],
+            "Process / الإجراءات":["اجراء","process","انجاز"],
+            "Service / الخدمة":["خدم","service","جودة"],
+            "Platform / المنصة":["تطبيق","app","website","system"],
         }
-
-        def classify(text):
-            for th, words in themes.items():
+        def classify(t):
+            for th,words in themes.items():
                 for w in words:
-                    if w in text:
-                        return th
+                    if w in t: return th
             return "Other / أخرى"
-
         df["Theme"] = df["__clean"].apply(classify)
         df = df[df["Theme"] != "Other / أخرى"]
         theme_counts = df["Theme"].value_counts().reset_index()
-        theme_counts.columns = ["Theme", "Count"]
-        theme_counts["%"] = theme_counts["Count"] / theme_counts["Count"].sum() * 100
+        theme_counts.columns = ["Theme","Count"]
+        theme_counts["%"] = theme_counts["Count"]/theme_counts["Count"].sum()*100
         theme_counts["Cum%"] = theme_counts["%"].cumsum()
 
         st.dataframe(theme_counts)
@@ -367,15 +289,5 @@ with tab_pareto:
         fig.add_scatter(x=theme_counts["Theme"], y=theme_counts["Cum%"], name="Cumulative %", yaxis="y2")
         fig.update_layout(yaxis=dict(title="Count"), yaxis2=dict(title="Cum%", overlaying="y", side="right"))
         st.plotly_chart(fig, use_container_width=True)
-
-        if st.button("⬇️ تنزيل تقرير Excel"):
-            ts = datetime.now().strftime("%Y-%m-%d")
-            out_name = f"Report_{center.replace(' ', '_')}_{ts}.xlsx"
-            with pd.ExcelWriter(out_name, engine="openpyxl") as writer:
-                df.to_excel(writer, index=False, sheet_name="RawData")
-                theme_counts.to_excel(writer, index=False, sheet_name="Pareto")
-            with open(out_name, "rb") as f:
-                st.download_button("📥 تحميل التقرير", data=f.read(), file_name=out_name,
-                                   mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
