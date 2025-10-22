@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.8 (Final Stable)
-✅ Fix persistent NameError (target_center)
-✅ Stable across all user roles and Streamlit reruns
+Customer Satisfaction Dashboard — v8.9 (Unified Centers Mode)
+✅ Removed 'All Centers (Master)'
+✅ Every user must select one center
+✅ Stable KPIs / Pareto / Services for each center
 """
 
 import streamlit as st
@@ -19,17 +20,17 @@ from pathlib import Path
 # 🔐 USERS
 # =========================================================
 USER_KEYS = {
-    "Public Services Department": {"password": "psd2025", "role": "center", "file": "Center_Public_Services.csv"},
-    "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
-    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
-    "Executive Council": {"password": "admin2025", "role": "admin", "file": "Centers_Master.csv"},
+    "Public Services Department": {"password": "psd2025", "file": "Center_Public_Services.csv"},
+    "Ras Al Khaimah Municipality": {"password": "rakm2025", "file": "Center_RAK_Municipality.csv"},
+    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "file": "Center_Sheikh_Saud_Courts.csv"},
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "file": "Center_Sheikh_Saqr_Courts.csv"},
+    "Executive Council": {"password": "admin2025", "file": None},  # يمكنه اختيار أي مركز
 }
 
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="لوحة تجربة المتعاملين مراكز رأس الخيمة — الإصدار 1.0", layout="wide")
+st.set_page_config(page_title="لوحة تجربة المتعاملين — رأس الخيمة", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
@@ -46,33 +47,20 @@ if lang == "العربية":
 # =========================================================
 # LOGIN
 # =========================================================
-params = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
-center_from_link = params.get("center", [None])[0]
-center_options = list(USER_KEYS.keys())
+st.sidebar.header("🔐 تسجيل الدخول")
+center_options = [c for c in USER_KEYS if c != "Executive Council"]
 
-if center_from_link and center_from_link in USER_KEYS:
-    selected_center = center_from_link
-else:
-    st.sidebar.header("🏢 اختر المركز / Select Center")
-    selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
+selected_user = st.sidebar.selectbox("👤 اختر المستخدم", list(USER_KEYS.keys()))
+password = st.sidebar.text_input("كلمة المرور / Password", type="password")
 
 if "authorized" not in st.session_state:
-    st.session_state.update({
-        "authorized": False, "center": None, "role": None, "target_center": None
-    })
+    st.session_state.update({"authorized": False, "center": None, "file": None})
 
-if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
-    st.sidebar.subheader("🔑 كلمة المرور / Password")
-    password = st.sidebar.text_input("Password", type="password")
-    if password == USER_KEYS[selected_center]["password"]:
-        st.session_state.update({
-            "authorized": True,
-            "center": selected_center,
-            "role": USER_KEYS[selected_center]["role"],
-            "file": USER_KEYS[selected_center]["file"],
-            "target_center": None
-        })
-        st.success(f"✅ تم تسجيل الدخول كمركز: {selected_center}")
+if not st.session_state["authorized"] or st.session_state["center"] != selected_user:
+    if password == USER_KEYS[selected_user]["password"]:
+        st.session_state["authorized"] = True
+        st.session_state["center"] = selected_user
+        st.success("✅ تم تسجيل الدخول بنجاح.")
         st.rerun()
     elif password:
         st.error("🚫 كلمة المرور غير صحيحة.")
@@ -81,37 +69,40 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.warning("يرجى إدخال كلمة المرور.")
         st.stop()
 
-center, role = st.session_state["center"], st.session_state["role"]
+center = st.session_state["center"]
+
+# =========================================================
+# SELECT CENTER FILE
+# =========================================================
+if center == "Executive Council":
+    st.markdown("### 🏛️ الأمانة العامة — اختر مركزًا لعرض بياناته")
+    target_center = st.selectbox("اختر المركز:", center_options)
+    file_path = USER_KEYS[target_center]["file"]
+else:
+    target_center = center
+    file_path = USER_KEYS[center]["file"]
+
+if not file_path or not Path(file_path).exists():
+    st.error("❌ ملف المركز غير موجود أو لم يتم رفعه بعد.")
+    st.stop()
 
 # =========================================================
 # LOAD DATA
 # =========================================================
+@st.cache_data
 def safe_read(file):
     try:
-        if Path(file).exists():
-            return pd.read_csv(file, encoding="utf-8", low_memory=False)
-        return None
-    except Exception:
-        return None
-
-# ✅ تعريف target_center داخل session دائمًا
-if role == "admin":
-    st.markdown("### 🏛️ الأمانة العامة")
-    st.session_state["target_center"] = st.selectbox(
-        "اختر المركز:",
-        ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"]
-    )
-    target_center = st.session_state["target_center"]
-    file_path = "Centers_Master.csv" if target_center == "All Centers (Master)" else USER_KEYS[target_center]["file"]
-else:
-    target_center = st.session_state.get("target_center", center)
-    file_path = USER_KEYS[center]["file"]
-    st.markdown(f"### 📊 لوحة مركز {center}")
+        return pd.read_csv(file, encoding="utf-8", low_memory=False)
+    except Exception as e:
+        st.error(f"خطأ في تحميل الملف: {e}")
+        return pd.DataFrame()
 
 df = safe_read(file_path)
-if df is None or df.empty:
-    st.error(f"❌ لا يمكن تحميل الملف: {file_path}")
+if df.empty:
+    st.warning("⚠️ لا توجد بيانات في هذا الملف.")
     st.stop()
+
+st.markdown(f"### 📊 لوحة مركز: **{target_center}**")
 
 # =========================================================
 # FUNCTIONS
@@ -140,24 +131,25 @@ def detect_nps(df_in):
     return (promoters - detractors) / len(s) * 100
 
 # =========================================================
-# FILTERS
-# =========================================================
-filter_cols = [c for c in df.columns if c.endswith("_name") and c.upper() in ["GENDER_NAME","SERVICE_NAME","SECTOR_NAME","NATIONALITY_NAME","CENTER_NAME"]]
-filters = {}
-with st.sidebar.expander("🎛️ الفلاتر / Filters"):
-    for col in filter_cols:
-        options = df[col].dropna().unique().tolist()
-        selection = st.multiselect(col.replace("_name",""), options, default=options)
-        filters[col] = selection
-for col, values in filters.items():
-    df = df[df[col].isin(values)]
-
-# =========================================================
 # TABS
 # =========================================================
 tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
     "📁 البيانات","📈 توزيع العينة","📊 المؤشرات","📋 الخدمات","💬 Pareto"
 ])
+
+# =========================================================
+# 📁 DATA TAB
+# =========================================================
+with tab_data:
+    st.subheader("📁 البيانات الكاملة")
+    st.dataframe(df, use_container_width=True)
+    ts = datetime.now().strftime("%Y%m%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Data")
+    st.download_button("📥 تنزيل البيانات (Excel)", data=buffer.getvalue(),
+                       file_name=f"{target_center}_Data_{ts}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # =========================================================
 # 📈 SAMPLE TAB
@@ -166,20 +158,9 @@ with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-    if total == 0:
-        st.info("لا توجد بيانات.")
-        st.stop()
-
     chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
-    grouping = ["CENTER_name"] if "CENTER_name" in df.columns else []
-
-    if role == "admin" and target_center == "All Centers (Master)" and grouping:
-        summary = df.groupby(grouping).size().reset_index(name="Count")
-        fig = px.bar(summary, x="CENTER_name", y="Count", color="CENTER_name",
-                     title="عدد الردود حسب المركز", color_discrete_sequence=PASTEL)
-        st.plotly_chart(fig, use_container_width=True)
-
-    for col in filter_cols:
+    categorical_cols = [c for c in df.columns if "_name" in c.lower()]
+    for col in categorical_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
         counts["%"] = counts["Count"] / total * 100
@@ -188,115 +169,105 @@ with tab_sample:
             fig = px.pie(counts, names=col, values="Count", hole=0.3,
                          title=title, color_discrete_sequence=PASTEL)
         else:
-            fig = px.bar(counts, x=col, y="Count", text="Count", title=title,
-                         color=col, color_discrete_sequence=PASTEL)
+            fig = px.bar(counts, x=col, y="Count", text="Count",
+                         title=title, color=col, color_discrete_sequence=PASTEL)
             fig.update_traces(textposition="outside")
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs TAB (All Centers merge)
+# 📊 KPIs TAB
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
+    csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
+    ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
+    nps = detect_nps(df)
 
-    if role == "admin" and target_center == "All Centers (Master)":
-        combined = []
-        for c, info in USER_KEYS.items():
-            if c == "Executive Council": continue
-            if Path(info["file"]).exists():
-                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
-                dfc["Center"] = c
-                combined.append(dfc)
-        if combined:
-            df_all = pd.concat(combined, ignore_index=True)
-            summary = df_all.groupby("Center").agg(
-                CSAT=("Dim6.1", series_to_percent),
-                CES=("Dim6.2", series_to_percent),
-                NPS=("Center", lambda x: detect_nps(df_all[df_all["Center"] == x.name]))
-            ).reset_index()
-            st.dataframe(summary.style.format({"CSAT": "{:.1f}", "CES": "{:.1f}", "NPS": "{:.1f}"}))
-            fig = px.bar(summary.melt(id_vars="Center", value_vars=["CSAT", "CES", "NPS"]),
-                         x="Center", y="value", color="variable",
-                         barmode="group", title="مقارنة المؤشرات بين المراكز",
-                         color_discrete_sequence=PASTEL)
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.warning("⚠️ لا توجد بيانات كافية لجميع المراكز.")
-    else:
-        csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
-        ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-        nps = detect_nps(df)
-        c1, c2, c3 = st.columns(3)
-        for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
-            fig = go.Figure(go.Indicator(
-                mode="gauge+number",
-                value=val if not np.isnan(val) else 0,
-                title={'text': name},
-                gauge={'axis': {'range': [0, 100]},
-                       'steps': [
-                           {'range': [0, 60], 'color': '#f5b7b1'},
-                           {'range': [60, 80], 'color': '#fcf3cf'},
-                           {'range': [80, 100], 'color': '#c8f7c5'}],
-                       'bar': {'color': '#2ecc71'}}))
-            col.plotly_chart(fig, use_container_width=True)
+    c1, c2, c3 = st.columns(3)
+    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
+        fig = go.Figure(go.Indicator(
+            mode="gauge+number",
+            value=val if not np.isnan(val) else 0,
+            title={'text': name},
+            gauge={'axis': {'range': [0, 100]},
+                   'steps': [
+                       {'range': [0, 60], 'color': '#f5b7b1'},
+                       {'range': [60, 80], 'color': '#fcf3cf'},
+                       {'range': [80, 100], 'color': '#c8f7c5'}],
+                   'bar': {'color': '#2ecc71'}}))
+        col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 💬 PARETO TAB (merged for All Centers)
+# 📋 SERVICES TAB
+# =========================================================
+with tab_services:
+    st.subheader("📋 تحليل الخدمات")
+    if "SERVICE_name" not in df.columns:
+        st.warning("⚠️ لا يوجد عمود للخدمات.")
+    else:
+        service_summary = df.groupby("SERVICE_name").agg(
+            CSAT=("Dim6.1", series_to_percent),
+            CES=("Dim6.2", series_to_percent),
+            Sample_Size=("SERVICE_name", "count")
+        ).reset_index().sort_values("CSAT", ascending=False)
+
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=list(service_summary.columns),
+                        fill_color="#2c3e50", align='center', font=dict(color='white', size=13)),
+            cells=dict(values=[service_summary[c] for c in service_summary.columns],
+                       align='center', font=dict(size=12)))
+        ])
+        fig.update_layout(height=450)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
+# 💬 PARETO TAB
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الملاحظات (Pareto)")
 
-    if role == "admin" and target_center == "All Centers (Master)":
-        combined = []
-        for c, info in USER_KEYS.items():
-            if c == "Executive Council": continue
-            if Path(info["file"]).exists():
-                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
-                combined.append(dfc)
-        if combined:
-            df = pd.concat(combined, ignore_index=True)
-
-    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["unsat","comment","ملاحظ","reason"])]
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["unsat","comment","reason","ملاحظ"])]
     if not text_cols:
-        st.warning("⚠️ لا يوجد عمود نصي.")
-        st.stop()
-    col = text_cols[0]
-    df["__clean"] = df[col].astype(str).str.lower()
-    df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
-    df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
-    empty = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
-    df = df[~df["__clean"].isin(empty)]
-    df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+        st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+    else:
+        col = text_cols[0]
+        df["__clean"] = df[col].astype(str).str.lower()
+        df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
+        df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
+        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
+        df = df[~df["__clean"].isin(empty_terms)]
+        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
 
-    themes = {
-        "Parking / مواقف السيارات": ["موقف","مواقف","parking","السيارات"],
-        "Waiting / الانتظار": ["انتظار","بطء","delay","slow"],
-        "Staff / الموظفون": ["موظف","تعامل","staff"],
-        "Fees / الرسوم": ["رسوم","دفع","fee"],
-        "Process / الإجراءات": ["اجراء","process","انجاز"],
-        "Platform / المنصة": ["تطبيق","app","system","website"],
-        "Facility / المكان": ["مكان","نظافة","ازدحام"],
-        "Communication / التواصل": ["رد","تواصل","اتصال"]
-    }
+        themes = {
+            "Parking / مواقف السيارات": ["موقف","مواقف","parking","السيارات"],
+            "Waiting / الانتظار": ["انتظار","بطء","delay","slow"],
+            "Staff / الموظفون": ["موظف","تعامل","staff"],
+            "Fees / الرسوم": ["رسوم","دفع","fee"],
+            "Process / الإجراءات": ["اجراء","process","انجاز"],
+            "Platform / المنصة": ["تطبيق","app","system","website"],
+            "Facility / المكان": ["مكان","نظافة","ازدحام"],
+            "Communication / التواصل": ["رد","تواصل","اتصال"]
+        }
 
-    def classify_theme(t):
-        for th, ws in themes.items():
-            if any(w in t for w in ws): return th
-        return "Other / أخرى"
+        def classify_theme(t):
+            for th, ws in themes.items():
+                if any(w in t for w in ws): return th
+            return "Other / أخرى"
 
-    df["Theme"] = df["__clean"].apply(classify_theme)
-    df = df[df["Theme"] != "Other / أخرى"]
-    counts = df["Theme"].value_counts().reset_index()
-    counts.columns = ["Theme","Count"]
-    counts["%"] = (counts["Count"]/counts["Count"].sum()*100).round(1)
-    counts["Cum%"] = counts["%"].cumsum()
-    counts["Color"] = np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+        df["Theme"] = df["__clean"].apply(classify_theme)
+        df = df[df["Theme"] != "Other / أخرى"]
 
-    st.dataframe(counts.style.format({"%":"{:.1f}","Cum%":"{:.1f}"}))
-    fig = go.Figure()
-    fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"])
-    fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="Cumulative %", yaxis="y2", mode="lines+markers")
-    fig.update_layout(title="Pareto — المحاور الرئيسية",
-                      yaxis=dict(title="عدد الملاحظات"),
-                      yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
-    st.plotly_chart(fig, use_container_width=True)
+        counts = df["Theme"].value_counts().reset_index()
+        counts.columns = ["Theme","Count"]
+        counts["%"] = (counts["Count"]/counts["Count"].sum()*100).round(1)
+        counts["Cum%"] = counts["%"].cumsum()
+        counts["Color"] = np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+
+        st.dataframe(counts.style.format({"%":"{:.1f}","Cum%":"{:.1f}"}))
+        fig = go.Figure()
+        fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"])
+        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="Cumulative %", yaxis="y2", mode="lines+markers")
+        fig.update_layout(title="Pareto — المحاور الرئيسية",
+                          yaxis=dict(title="عدد الملاحظات"),
+                          yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
+        st.plotly_chart(fig, use_container_width=True)
