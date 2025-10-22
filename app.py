@@ -283,65 +283,42 @@ with tab_services:
 
 
 
-
 # =========================================================
-# 🏛️ CENTER COMPARISON TAB — PLOTLY TABLE VERSION
+# 🏛️ CENTER COMPARISON TAB
 # =========================================================
 with tab_compare:
     st.subheader("🏛️ مقارنة المراكز")
 
-    def plot_center_table(df_in):
-        """عرض جدول المقارنة بين المراكز بألوان حسب CSAT"""
-        df_plot = df_in.copy()
-        df_plot["CSAT_color"] = np.where(df_plot["CSAT"] >= 80, "#c8f7c5",
-                                 np.where(df_plot["CSAT"] >= 60, "#fff3b0", "#f5b7b1"))
-        header_color = "#2c3e50"
-        fig = go.Figure(data=[go.Table(
-            header=dict(values=list(df_plot.columns),
-                        fill_color=header_color,
-                        align='center', font=dict(color='white', size=13)),
-            cells=dict(values=[df_plot[c] for c in df_plot.columns],
-                       fill_color=[[c for c in df_plot["CSAT_color"]] for _ in df_plot.columns],
-                       align='center', font=dict(size=12)))
-        ])
-        fig.update_layout(height=400, margin=dict(l=5, r=5, t=30, b=5))
-        st.plotly_chart(fig, use_container_width=True)
-
     try:
         df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
 
-        # اكتشاف الأعمدة تلقائيًا
+        # 🔍 اكتشاف الأعمدة تلقائيًا (حتى لو تغيرت الأسماء)
         col_map = {}
         for c in df_master.columns:
             c_low = c.lower().strip()
             if "center" in c_low: col_map[c] = "Center"
-            elif "csat" in c_low: col_map[c] = "CSAT"
-            elif "ces" in c_low: col_map[c] = "CES"
-            elif "nps" in c_low: col_map[c] = "NPS"
+            elif "csat" in c_low or "dim6.1" in c_low: col_map[c] = "CSAT"
+            elif "ces" in c_low or "dim6.2" in c_low: col_map[c] = "CES"
+            elif "nps" in c_low or "recommend" in c_low: col_map[c] = "NPS"
         df_master.rename(columns=col_map, inplace=True)
 
-       expected_cols = ["Center", "CSAT", "CES", "NPS"]
-existing = [c for c in expected_cols if c in df_master.columns]
-if existing:
-    df_master = df_master[existing].sort_values(by=existing[1], ascending=False)
-else:
-    st.warning(f"⚠️ لم يتم العثور على الأعمدة المطلوبة في الملف. الأعمدة المتاحة: {', '.join(df_master.columns)}")
-    st.stop()
+        # ✅ اختيار الأعمدة الموجودة فعليًا
+        expected_cols = ["Center", "CSAT", "CES", "NPS"]
+        existing = [c for c in expected_cols if c in df_master.columns]
+        if existing:
+            df_master = df_master[existing].sort_values(by=existing[1], ascending=False)
+            st.dataframe(df_master, use_container_width=True)
 
+            fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
+                         color_continuous_scale=["#f5b7b1", "#fcf3cf", "#c8f7c5"],
+                         title="ترتيب المراكز حسب CSAT")
+            st.plotly_chart(fig, use_container_width=True)
+        else:
+            st.warning(f"⚠️ لم يتم العثور على الأعمدة المطلوبة في الملف. الأعمدة المتاحة: {', '.join(df_master.columns)}")
 
-
-
-
-        
-        plot_center_table(df_master)
-
-        fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
-                     color_continuous_scale=["#f5b7b1","#fcf3cf","#c8f7c5"],
-                     title="ترتيب المراكز حسب CSAT")
-        fig.update_layout(xaxis_title="المركز", yaxis_title="CSAT (%)")
-        st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.warning(f"⚠️ تعذر تحميل ملف المقارنة: {e}")
+
 
 
 # =========================================================
@@ -393,5 +370,6 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
