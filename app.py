@@ -22,7 +22,7 @@ USER_KEYS = {
     "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
     "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
     "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
-    "Executive Council": {"password": "admin2025", "role": "admin", "file": None},  # الأمانة العامة
+    "Executive Council": {"password": "admin2025", "role": "admin", "file": "Centers_Master.csv"},  # الأمانة العامة
 }
 
 # =========================================================
@@ -370,6 +370,7 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
 
