@@ -22,64 +22,73 @@ import re
 from datetime import datetime
 import io
 import zipfile
+
 # =========================================================
-# 🔒 نظام حماية المراكز - كريم الجوعادي
+# 🔒 نظام حماية المراكز مع صلاحية الأمانة العامة -ي
 # =========================================================
 import streamlit as st
 
-# قائمة المراكز وكلمات المرور الخاصة بكل مركز
-CENTER_KEYS = {
-    "Public Services Department": "psd2025",
-    "Ras Al Khaimah Municipality": "rakm2025",
-    "Sheikh Saud Center-Ras Al Khaimah Courts": "ssc2025",
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": "ssq2025",
+# تعريف المستخدمين والصلاحيات
+USER_KEYS = {
+    "Public Services Department": {"password": "psd2025", "role": "center"},
+    "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center"},
+    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center"},
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center"},
+    "Executive Council": {"password": "admin2025", "role": "admin"},  # 🔹 الأمانة العامة
 }
 
-# =========================================================
-# 🔹 كشف المركز من الرابط أو من القائمة الجانبية
-# =========================================================
+# واجهة اختيار المركز
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
-center_options = list(CENTER_KEYS.keys())
+center_options = list(USER_KEYS.keys())
 
-# إذا كان المركز مذكور في الرابط وموجود في القائمة
-if center_from_link and center_from_link in CENTER_KEYS:
+if center_from_link and center_from_link in USER_KEYS:
     selected_center = center_from_link
 else:
     st.sidebar.header("🏢 اختيار المركز / Select Center")
     selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
-# =========================================================
-# 🔹 التحقق من كلمة المرور وتخزين حالة الدخول
-# =========================================================
+# التحقق من الجلسة
 if "authorized" not in st.session_state:
     st.session_state["authorized"] = False
 if "center" not in st.session_state:
     st.session_state["center"] = None
+if "role" not in st.session_state:
+    st.session_state["role"] = None
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔑 كلمة المرور / Password")
     password = st.sidebar.text_input("Password", type="password")
 
-    # التحقق من كلمة المرور
-    if password == CENTER_KEYS.get(selected_center):
+    # تحقق من كلمة المرور
+    if password == USER_KEYS[selected_center]["password"]:
         st.session_state["authorized"] = True
         st.session_state["center"] = selected_center
+        st.session_state["role"] = USER_KEYS[selected_center]["role"]
         st.success(f"✅ تم التحقق بنجاح: {selected_center}")
         st.rerun()
     elif password:
-        st.error("🚫 كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.")
+        st.error("🚫 كلمة المرور غير صحيحة.")
         st.stop()
     else:
-        st.warning("🔐 يرجى إدخال كلمة المرور للوصول إلى لوحة المركز.")
+        st.warning("🔐 يرجى إدخال كلمة المرور.")
         st.stop()
 
 # =========================================================
-# ✅ إذا تم التحقق بنجاح، يبدأ تحميل البيانات والتحليل
+# ✅ بعد التحقق - تحديد ما يمكن عرضه
 # =========================================================
-st.sidebar.success(f"تم تسجيل الدخول كمركز: {st.session_state['center']}")
-st.markdown(f"### 📊 {st.session_state['center']} Dashboard")
+role = st.session_state["role"]
+center = st.session_state["center"]
 
+st.sidebar.success(f"تم تسجيل الدخول كمركز: {center}")
+
+if role == "admin":
+    st.markdown("### 🏛️ عرض جميع المراكز (وضع الأمانة العامة)")
+    st.info("يمكنك الآن الوصول إلى جميع بيانات المراكز.")
+    # هنا تضع الكود الذي يعرض جميع المراكز (كل الملفات OneDrive أو CSV)
+else:
+    st.markdown(f"### 📊 لوحة مركز {center}")
+    # هنا تضع الكود الذي يحمّل بيانات المركز الواحد فقط
 
 
 
@@ -686,6 +695,7 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
 
