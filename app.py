@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.4.4 Secure Advanced Edition
+Customer Satisfaction Dashboard — v7.4.4 (Secure + Lookup Edition)
 - Full analytics (Sample, KPIs, Dimensions, NPS, Pareto)
-- Secure login by center
-- Excel export per center or all centers for admin
+- Secure login by center / admin
+- Integrated lookup tables and filters
+- Excel export per center
 """
 
 # =========================================================
@@ -51,19 +52,18 @@ USER_KEYS = {
 }
 
 # =========================================================
-# 🎨 Page Configuration
+# 🎨 Page Setup
 # =========================================================
 st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 7.4.4", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🌐 Language
+# 🌐 Language Selection
 # =========================================================
 lang = st.sidebar.radio("🌍 اللغة / Language", ["العربية", "English"], index=0)
 rtl = True if lang == "العربية" else False
 if rtl:
-    st.markdown(
-        """
+    st.markdown("""
         <style>
         html, body, [class*="css"] {
             direction: rtl;
@@ -71,12 +71,10 @@ if rtl:
             font-family: "Tajawal", "Cairo", "Segoe UI", sans-serif;
         }
         </style>
-        """,
-        unsafe_allow_html=True,
-    )
+    """, unsafe_allow_html=True)
 
 # =========================================================
-# 🏢 Login Section
+# 🔑 Login Section
 # =========================================================
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
@@ -112,12 +110,12 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.warning("يرجى إدخال كلمة المرور.")
         st.stop()
 
-# =========================================================
-# 📁 Load Data
-# =========================================================
 center = st.session_state["center"]
 role = st.session_state["role"]
 
+# =========================================================
+# 📥 Load Data
+# =========================================================
 if role == "admin":
     st.markdown("### 🏛️ وضع الأمانة العامة (Admin Mode)")
     target_center = st.selectbox(
@@ -135,10 +133,59 @@ else:
     st.info("📂 يتم تحميل البيانات تلقائيًا من الملف المرتبط بالمركز.")
 
 try:
-    df = pd.read_csv(file_path, encoding="utf-8")
+    df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
     st.success(f"✅ تم تحميل البيانات ({len(df)} صفًا).")
 except Exception as e:
     st.error(f"❌ تعذر تحميل الملف: {e}")
+    st.stop()
+
+# =========================================================
+# 📗 Load Lookup Tables
+# =========================================================
+lookup_catalog = {}
+lookup_path = Path("Data_tables.xlsx")
+if lookup_path.exists():
+    xls = pd.ExcelFile(lookup_path)
+    for sheet in xls.sheet_names:
+        try:
+            tbl = pd.read_excel(xls, sheet_name=sheet)
+            tbl.columns = [c.strip().upper() for c in tbl.columns]
+            lookup_catalog[sheet.upper()] = tbl
+        except Exception as e:
+            st.warning(f"⚠️ لم يتم تحميل ورقة {sheet}: {e}")
+else:
+    st.error("❌ ملف Data_tables.xlsx غير موجود في نفس المجلد.")
+    st.stop()
+
+# =========================================================
+# 🔄 Merge Lookup Tables Automatically
+# =========================================================
+for col in df.columns:
+    if col.upper() in lookup_catalog:
+        tbl = lookup_catalog[col.upper()]
+        if "CODE" in tbl.columns:
+            merge_col = "CODE"
+        else:
+            merge_col = tbl.columns[0]
+        lang_col = "ARABIC" if lang == "العربية" else "ENGLISH"
+        if lang_col in tbl.columns:
+            df = df.merge(tbl[[merge_col, lang_col]], how="left", left_on=col, right_on=merge_col)
+            df.rename(columns={lang_col: f"{col}_name"}, inplace=True)
+            df.drop(columns=[merge_col], inplace=True, errors="ignore")
+
+# =========================================================
+# 🎛️ Sidebar Filters
+# =========================================================
+st.sidebar.header("🎛️ عناصر التصفية")
+filter_cols = [c for c in df.columns if c.endswith("_name")]
+for col in filter_cols:
+    options = sorted(df[col].dropna().unique())
+    selected = st.sidebar.multiselect(col.replace("_name", ""), options)
+    if selected:
+        df = df[df[col].isin(selected)]
+
+if df.empty:
+    st.warning("⚠️ لا توجد بيانات بعد تطبيق الفلاتر.")
     st.stop()
 
 # =========================================================
@@ -175,32 +222,34 @@ tab_sample, tab_kpis, tab_dims, tab_nps, tab_pareto = st.tabs(
 )
 
 # =========================================================
-# 📈 Sample Tab
+# 📈 Tab: Sample
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
-    lookup_cols = [c for c in df.columns if any(k in c.lower() for k in ["gender", "sector", "center", "nationality", "service"])]
-    for col in lookup_cols:
-        if df[col].nunique() > 1:
-            fig = px.pie(df, names=col, title=f"توزيع {col}", color_discrete_sequence=PASTEL)
-            st.plotly_chart(fig, use_container_width=True)
+    charts = []
+    for col in filter_cols:
+        counts = df[col].value_counts().reset_index()
+        counts.columns = [col, "Count"]
+        fig = px.pie(counts, names=col, values="Count", color_discrete_sequence=PASTEL)
+        charts.append(fig)
+    for i, fig in enumerate(charts):
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs Tab
+# 📊 Tab: KPIs
 # =========================================================
 with tab_kpis:
-    st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
+    st.subheader("📊 المؤشرات الرئيسية")
     csat = series_to_percent(df.select_dtypes(include=np.number).mean(axis=1))
     ces = series_to_percent(df.select_dtypes(include=np.number).median(axis=1))
     nps = detect_nps(df)
-
     c1, c2, c3 = st.columns(3)
     c1.metric("😊 CSAT (%)", f"{csat:.2f}" if not np.isnan(csat) else "N/A")
     c2.metric("⭐ CES (%)", f"{ces:.2f}" if not np.isnan(ces) else "N/A")
     c3.metric("🎯 NPS", f"{nps:.2f}" if not np.isnan(nps) else "N/A")
 
 # =========================================================
-# 📉 Dimensions Tab
+# 📉 Tab: Dimensions
 # =========================================================
 with tab_dims:
     st.subheader("📉 الأبعاد")
@@ -216,10 +265,10 @@ with tab_dims:
         fig = px.bar(ddf, x="Dimension", y="Score", text_auto=".1f", color="Dimension", color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
     else:
-        st.info("لم يتم العثور على أعمدة Dim1–Dim6.")
+        st.info("⚠️ لم يتم العثور على أعمدة Dim1–Dim6.")
 
 # =========================================================
-# 🎯 NPS Tab
+# 🎯 Tab: NPS
 # =========================================================
 with tab_nps:
     st.subheader("🎯 صافي نقاط الترويج (NPS)")
@@ -229,14 +278,14 @@ with tab_nps:
         nps_buckets = pd.cut(s, bins=[0, 6, 8, 10], labels=["Detractor", "Passive", "Promoter"])
         pie_df = nps_buckets.value_counts().reset_index()
         pie_df.columns = ["Type", "Count"]
-        fig = px.pie(pie_df, names="Type", values="Count",
-                     color="Type", color_discrete_map={"Promoter": "#2ecc71", "Passive": "#95a5a6", "Detractor": "#e74c3c"})
+        fig = px.pie(pie_df, names="Type", values="Count", color="Type",
+                     color_discrete_map={"Promoter": "#2ecc71", "Passive": "#95a5a6", "Detractor": "#e74c3c"})
         st.plotly_chart(fig, use_container_width=True)
     else:
         st.info("⚠️ لا يوجد عمود NPS في البيانات.")
 
 # =========================================================
-# 💬 Pareto Tab
+# 💬 Tab: Pareto
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الشكاوى (Pareto)")
