@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.2 (Executive Edition)
+Customer Satisfaction Dashboard — v8.3 (Executive Edition)
 Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
@@ -10,7 +10,7 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import io, re, os
+import io, re
 from datetime import datetime
 from pathlib import Path
 
@@ -22,7 +22,7 @@ USER_KEYS = {
     "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
     "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
     "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
-    "Executive Council": {"password": "admin2025", "role": "admin", "file": "Centers_Master.csv"},  # الأمانة العامة
+    "Executive Council": {"password": "admin2025", "role": "admin", "file": "Centers_Master.csv"},
 }
 
 # =========================================================
@@ -45,7 +45,7 @@ if lang == "العربية":
 # =========================================================
 # LOGIN
 # =========================================================
-params = st.query_params
+params = st.query_params if hasattr(st, "query_params") else st.experimental_get_query_params()
 center_from_link = params.get("center", [None])[0]
 center_options = list(USER_KEYS.keys())
 
@@ -84,8 +84,13 @@ center, role = st.session_state["center"], st.session_state["role"]
 # =========================================================
 def safe_read(file):
     try:
-        return pd.read_csv(file, encoding="utf-8", low_memory=False)
-    except Exception:
+        if Path(file).exists():
+            return pd.read_csv(file, encoding="utf-8", low_memory=False)
+        else:
+            st.warning(f"⚠️ الملف غير موجود: {file}")
+            return None
+    except Exception as e:
+        st.error(f"❌ خطأ أثناء قراءة الملف {file}: {e}")
         return None
 
 if role == "admin":
@@ -97,7 +102,7 @@ else:
     st.markdown(f"### 📊 لوحة مركز {center}")
 
 df = safe_read(file_path)
-if df is None:
+if df is None or df.empty:
     st.error(f"❌ تعذر تحميل الملف: {file_path}")
     st.stop()
 
@@ -105,41 +110,19 @@ if df is None:
 # LOOKUP TABLES
 # =========================================================
 lookup_path = Path("Data_tables.xlsx")
-lookup_catalog = {}
 if lookup_path.exists():
-    xls = pd.ExcelFile(lookup_path)
-    for sheet in xls.sheet_names:
-        tbl = pd.read_excel(xls, sheet_name=sheet)
-        tbl.columns = [c.strip().upper() for c in tbl.columns]
-        lookup_catalog[sheet.upper()] = tbl
-    for col in df.columns:
-        if col.upper() in lookup_catalog:
-            tbl = lookup_catalog[col.upper()]
-            merge_key = "CODE" if "CODE" in tbl.columns else tbl.columns[0]
+    try:
+        xls = pd.ExcelFile(lookup_path)
+        for sheet in xls.sheet_names:
+            tbl = pd.read_excel(xls, sheet_name=sheet)
+            tbl.columns = [c.strip().upper() for c in tbl.columns]
             lang_col = "ARABIC" if lang == "العربية" else "ENGLISH"
-            if lang_col in tbl.columns:
-                df = df.merge(tbl[[merge_key, lang_col]], how="left", left_on=col, right_on=merge_key)
-                df.rename(columns={lang_col: f"{col}_name"}, inplace=True)
-                df.drop(columns=[merge_key], inplace=True, errors="ignore")
-
-# =========================================================
-# FUNCTIONS
-# =========================================================
-def series_to_percent(vals):
-    vals = pd.to_numeric(vals, errors="coerce").dropna()
-    if len(vals) == 0: return np.nan
-    mx = vals.max()
-    if mx <= 5: return ((vals - 1)/4*100).mean()
-    elif mx <= 10: return ((vals - 1)/9*100).mean()
-    else: return vals.mean()
-
-def detect_nps(df):
-    cands = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
-    if not cands: return np.nan
-    s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
-    if len(s)==0: return np.nan
-    promoters = (s>=9).sum(); detractors = (s<=6).sum()
-    return (promoters - detractors)/len(s)*100
+            merge_key = "CODE" if "CODE" in tbl.columns else tbl.columns[0]
+            if lang_col in tbl.columns and merge_key in df.columns:
+                df = df.merge(tbl[[merge_key, lang_col]], how="left", left_on=merge_key, right_on=merge_key)
+                df.rename(columns={lang_col: f"{merge_key}_name"}, inplace=True)
+    except Exception as e:
+        st.warning(f"⚠️ خطأ أثناء تحميل ملفات lookup: {e}")
 
 # =========================================================
 # FILTERS
@@ -157,9 +140,23 @@ for col, values in filters.items():
 # =========================================================
 # TABS
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_services, tab_compare, tab_pareto = st.tabs([
-    " البيانات","📈 توزيع العينة","📊 المؤشرات","📋 الخدمات","💬 Pareto"
+tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
+    "📁 البيانات","📈 توزيع العينة","📊 المؤشرات","📋 الخدمات","💬 Pareto"
 ])
+
+# =========================================================
+# 📁 DATA TAB
+# =========================================================
+with tab_data:
+    st.subheader("📁 البيانات بعد الفلاتر الحالية")
+    st.dataframe(df, use_container_width=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Filtered_Data")
+    st.download_button("📥 تنزيل البيانات الحالية (Excel)", data=buffer.getvalue(),
+                       file_name=f"Filtered_Data_{ts}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # =========================================================
 # 📁 DATA TAB
@@ -341,6 +338,7 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
 
