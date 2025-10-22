@@ -66,7 +66,7 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
         st.session_state["authorized"] = True
         st.session_state["center"] = selected_center
         st.success(f"✅ تم التحقق بنجاح: {selected_center}")
-        st.experimental_rerun()
+        st.rerun()
     elif password:
         st.error("🚫 كلمة المرور غير صحيحة، يرجى المحاولة مرة أخرى.")
         st.stop()
@@ -686,6 +686,7 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
 
