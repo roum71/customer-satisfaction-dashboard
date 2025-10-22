@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.4 (Executive Edition)
-Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
+Customer Satisfaction Dashboard — v8.5 (Executive Edition)
+Restores All Centers comparisons + sample size per service
 """
 
 import streamlit as st
@@ -86,11 +86,8 @@ def safe_read(file):
     try:
         if Path(file).exists():
             return pd.read_csv(file, encoding="utf-8", low_memory=False)
-        else:
-            st.warning(f"⚠️ الملف غير موجود: {file}")
-            return None
-    except Exception as e:
-        st.error(f"❌ خطأ أثناء قراءة الملف {file}: {e}")
+        return None
+    except Exception:
         return None
 
 if role == "admin":
@@ -103,7 +100,7 @@ else:
 
 df = safe_read(file_path)
 if df is None or df.empty:
-    st.error(f"❌ تعذر تحميل الملف: {file_path}")
+    st.error(f"❌ لا يمكن تحميل الملف: {file_path}")
     st.stop()
 
 # =========================================================
@@ -153,40 +150,33 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
 ])
 
 # =========================================================
-# 📁 DATA TAB
-# =========================================================
-with tab_data:
-    st.subheader("📁 البيانات بعد الفلاتر الحالية")
-    st.dataframe(df, use_container_width=True)
-    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Filtered_Data")
-    st.download_button("📥 تنزيل البيانات الحالية (Excel)", data=buffer.getvalue(),
-                       file_name=f"Filtered_Data_{ts}.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-# =========================================================
-# 📈 SAMPLE TAB
+# 📈 SAMPLE TAB — supports All Centers
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
     if total == 0:
-        st.info("لا توجد بيانات بعد تطبيق الفلاتر.")
+        st.info("لا توجد بيانات.")
         st.stop()
     chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
+    grouping = ["CENTER_name"] if "CENTER_name" in df.columns else []
+    if target_center == "All Centers (Master)" and grouping:
+        summary = df.groupby(grouping).size().reset_index(name="Count")
+        fig = px.bar(summary, x="CENTER_name", y="Count", color="CENTER_name",
+                     title="عدد الردود حسب المركز", color_discrete_sequence=PASTEL)
+        st.plotly_chart(fig, use_container_width=True)
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
-        counts["%"] = (counts["Count"] / total * 100).round(2)
+        counts["%"] = counts["Count"] / total * 100
         title = f"{col.replace('_name','')} — {total:,} رد"
         if chart_type == "دائري Pie":
-            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
-            fig.update_traces(text=counts["Count"], textinfo="value+label")
+            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title,
+                         color_discrete_sequence=PASTEL)
         else:
-            fig = px.bar(counts, x=col, y="Count", text="Count", title=title, color=col, color_discrete_sequence=PASTEL)
+            fig = px.bar(counts, x=col, y="Count", text="Count", title=title,
+                         color=col, color_discrete_sequence=PASTEL)
             fig.update_traces(textposition="outside")
         st.plotly_chart(fig, use_container_width=True)
 
@@ -213,7 +203,7 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB (مع حجم العينة)
+# 📋 SERVICES TAB — All Centers supported + sample size
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
@@ -234,66 +224,86 @@ with tab_services:
         fig.update_layout(height=450, margin=dict(l=5, r=5, t=30, b=5))
         st.plotly_chart(fig, use_container_width=True)
 
-    if "SERVICE_name" in df.columns:
-        service_summary = df.groupby("SERVICE_name").agg({
-            "Dim6.1": series_to_percent,
-            "Dim6.2": series_to_percent,
-            "SERVICE_name": "count"
-        }).rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES", "SERVICE_name": "Sample_Size"}).reset_index()
-        service_summary = service_summary.sort_values(by="CSAT", ascending=False)
-        plot_service_table(service_summary)
+    if role == "admin" and target_center == "All Centers (Master)":
+        combined = []
+        for c, info in USER_KEYS.items():
+            if c == "Executive Council": continue
+            if Path(info["file"]).exists():
+                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
+                dfc["Center"] = c
+                combined.append(dfc)
+        if combined:
+            all_df = pd.concat(combined, ignore_index=True)
+            if "SERVICE_name" in all_df.columns:
+                service_summary = all_df.groupby(["Center", "SERVICE_name"]).agg(
+                    CSAT=("Dim6.1", series_to_percent),
+                    CES=("Dim6.2", series_to_percent),
+                    Sample_Size=("SERVICE_name", "count")
+                ).reset_index()
+                service_summary = service_summary.sort_values("CSAT", ascending=False)
+                plot_service_table(service_summary)
+                fig = px.bar(service_summary.sort_values("CSAT", ascending=False),
+                             x="SERVICE_name", y="CSAT", color="Center",
+                             title="الخدمات حسب المركز (CSAT)",
+                             color_discrete_sequence=PASTEL)
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.warning("⚠️ لا يوجد عمود SERVICE_name في البيانات.")
+        else:
+            st.warning("⚠️ لا توجد ملفات مراكز.")
     else:
-        st.warning("⚠️ لا توجد بيانات خدمات في هذا المركز.")
+        if "SERVICE_name" in df.columns:
+            service_summary = df.groupby("SERVICE_name").agg(
+                CSAT=("Dim6.1", series_to_percent),
+                CES=("Dim6.2", series_to_percent),
+                Sample_Size=("SERVICE_name", "count")
+            ).reset_index().sort_values("CSAT", ascending=False)
+            plot_service_table(service_summary)
+        else:
+            st.warning("⚠️ لا توجد بيانات خدمات.")
 
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الملاحظات (Pareto)")
-    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["unsat", "comment", "ملاحظ", "reason"])]
-    if text_cols:
-        col = text_cols[0]
-        df["__clean"] = df[col].astype(str).str.lower()
-        df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
-        df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
-        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
-        df = df[~df["__clean"].isin(empty_terms)]
-        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
-
-        themes = {
-            "Parking / مواقف السيارات": ["موقف", "مواقف", "parking", "السيارات"],
-            "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
-            "Staff / الموظفون": ["موظف", "تعامل", "staff"],
-            "Fees / الرسوم": ["رسوم", "دفع", "fee"],
-            "Process / الإجراءات": ["اجراء", "process", "انجاز"],
-            "Platform / المنصة": ["تطبيق", "app", "system", "website"],
-            "Facility / المكان": ["مكان", "نظافة", "ازدحام"],
-            "Communication / التواصل": ["رد", "تواصل", "اتصال"]
-        }
-
-        def classify_theme(t):
-            for th, ws in themes.items():
-                if any(w in t for w in ws): return th
-            return "Other / أخرى"
-
-        df["Theme"] = df["__clean"].apply(classify_theme)
-        df = df[df["Theme"] != "Other / أخرى"]
-        counts = df["Theme"].value_counts().reset_index()
-        counts.columns = ["Theme", "Count"]
-        counts["%"] = (counts["Count"] / counts["Count"].sum() * 100).round(1)
-        counts["Cum%"] = counts["%"].cumsum()
-        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
-
-        st.dataframe(counts.style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}))
-        fig = go.Figure()
-        fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="Count")
-        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="Cumulative %", yaxis="y2", mode="lines+markers")
-        fig.update_layout(
-            title="Pareto — المحاور الرئيسية",
-            yaxis=dict(title="عدد الملاحظات"),
-            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
-            bargap=0.2
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["unsat","comment","ملاحظ","reason"])]
+    if not text_cols:
+        st.warning("⚠️ لا يوجد عمود نصي.")
+        st.stop()
+    col = text_cols[0]
+    df["__clean"] = df[col].astype(str).str.lower()
+    df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
+    df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
+    empty = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
+    df = df[~df["__clean"].isin(empty)]
+    df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+    themes = {
+        "Parking / مواقف السيارات": ["موقف","مواقف","parking","السيارات"],
+        "Waiting / الانتظار": ["انتظار","بطء","delay","slow"],
+        "Staff / الموظفون": ["موظف","تعامل","staff"],
+        "Fees / الرسوم": ["رسوم","دفع","fee"],
+        "Process / الإجراءات": ["اجراء","process","انجاز"],
+        "Platform / المنصة": ["تطبيق","app","system","website"],
+        "Facility / المكان": ["مكان","نظافة","ازدحام"],
+        "Communication / التواصل": ["رد","تواصل","اتصال"]
+    }
+    def classify_theme(t):
+        for th, ws in themes.items():
+            if any(w in t for w in ws): return th
+        return "Other / أخرى"
+    df["Theme"] = df["__clean"].apply(classify_theme)
+    df = df[df["Theme"] != "Other / أخرى"]
+    counts = df["Theme"].value_counts().reset_index()
+    counts.columns = ["Theme","Count"]
+    counts["%"] = (counts["Count"]/counts["Count"].sum()*100).round(1)
+    counts["Cum%"] = counts["%"].cumsum()
+    counts["Color"] = np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+    st.dataframe(counts.style.format({"%":"{:.1f}","Cum%":"{:.1f}"}))
+    fig = go.Figure()
+    fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"])
+    fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="Cumulative %", yaxis="y2", mode="lines+markers")
+    fig.update_layout(title="Pareto — المحاور الرئيسية",
+                      yaxis=dict(title="عدد الملاحظات"),
+                      yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
+    st.plotly_chart(fig, use_container_width=True)
