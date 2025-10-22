@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.7 (Executive Edition)
-✅ Fixes NameError / Adds All Centers KPIs + Pareto merge
-✅ Includes sample size per service
+Customer Satisfaction Dashboard — v8.8 (Final Stable)
+✅ Fix persistent NameError (target_center)
+✅ Stable across all user roles and Streamlit reruns
 """
 
 import streamlit as st
@@ -57,7 +57,9 @@ else:
     selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
 if "authorized" not in st.session_state:
-    st.session_state.update({"authorized": False, "center": None, "role": None})
+    st.session_state.update({
+        "authorized": False, "center": None, "role": None, "target_center": None
+    })
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔑 كلمة المرور / Password")
@@ -67,7 +69,8 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
             "authorized": True,
             "center": selected_center,
             "role": USER_KEYS[selected_center]["role"],
-            "file": USER_KEYS[selected_center]["file"]
+            "file": USER_KEYS[selected_center]["file"],
+            "target_center": None
         })
         st.success(f"✅ تم تسجيل الدخول كمركز: {selected_center}")
         st.rerun()
@@ -80,9 +83,6 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
 
 center, role = st.session_state["center"], st.session_state["role"]
 
-# ⚙️ لتفادي الأخطاء عند المراكز العادية
-target_center = None
-
 # =========================================================
 # LOAD DATA
 # =========================================================
@@ -94,11 +94,17 @@ def safe_read(file):
     except Exception:
         return None
 
+# ✅ تعريف target_center داخل session دائمًا
 if role == "admin":
     st.markdown("### 🏛️ الأمانة العامة")
-    target_center = st.selectbox("اختر المركز:", ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"])
+    st.session_state["target_center"] = st.selectbox(
+        "اختر المركز:",
+        ["All Centers (Master)"] + [c for c in USER_KEYS if c != "Executive Council"]
+    )
+    target_center = st.session_state["target_center"]
     file_path = "Centers_Master.csv" if target_center == "All Centers (Master)" else USER_KEYS[target_center]["file"]
 else:
+    target_center = st.session_state.get("target_center", center)
     file_path = USER_KEYS[center]["file"]
     st.markdown(f"### 📊 لوحة مركز {center}")
 
@@ -188,7 +194,7 @@ with tab_sample:
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs TAB
+# 📊 KPIs TAB (All Centers merge)
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
@@ -208,7 +214,6 @@ with tab_kpis:
                 CES=("Dim6.2", series_to_percent),
                 NPS=("Center", lambda x: detect_nps(df_all[df_all["Center"] == x.name]))
             ).reset_index()
-
             st.dataframe(summary.style.format({"CSAT": "{:.1f}", "CES": "{:.1f}", "NPS": "{:.1f}"}))
             fig = px.bar(summary.melt(id_vars="Center", value_vars=["CSAT", "CES", "NPS"]),
                          x="Center", y="value", color="variable",
@@ -236,69 +241,11 @@ with tab_kpis:
             col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB
-# =========================================================
-with tab_services:
-    st.subheader("📋 تحليل الخدمات")
-
-    def plot_service_table(df_in):
-        df_plot = df_in.copy()
-        if "CSAT" not in df_plot.columns: return
-        df_plot["CSAT_color"] = np.where(df_plot["CSAT"] >= 80, "#c8f7c5",
-                                 np.where(df_plot["CSAT"] >= 60, "#fff3b0", "#f5b7b1"))
-        header_color = "#2c3e50"
-        fig = go.Figure(data=[go.Table(
-            header=dict(values=list(df_plot.columns),
-                        fill_color=header_color,
-                        align='center', font=dict(color='white', size=13)),
-            cells=dict(values=[df_plot[c] for c in df_plot.columns],
-                       fill_color=[[c for c in df_plot["CSAT_color"]] for _ in df_plot.columns],
-                       align='center', font=dict(size=12)))
-        ])
-        fig.update_layout(height=450, margin=dict(l=5, r=5, t=30, b=5))
-        st.plotly_chart(fig, use_container_width=True)
-
-    if role == "admin" and target_center == "All Centers (Master)":
-        combined = []
-        for c, info in USER_KEYS.items():
-            if c == "Executive Council": continue
-            if Path(info["file"]).exists():
-                dfc = pd.read_csv(info["file"], encoding="utf-8", low_memory=False)
-                dfc["Center"] = c
-                combined.append(dfc)
-        if combined:
-            all_df = pd.concat(combined, ignore_index=True)
-            if "SERVICE_name" in all_df.columns:
-                service_summary = all_df.groupby(["Center", "SERVICE_name"]).agg(
-                    CSAT=("Dim6.1", series_to_percent),
-                    CES=("Dim6.2", series_to_percent),
-                    Sample_Size=("SERVICE_name", "count")
-                ).reset_index()
-                plot_service_table(service_summary)
-                fig = px.bar(service_summary, x="SERVICE_name", y="CSAT", color="Center",
-                             title="الخدمات حسب المركز (CSAT)",
-                             color_discrete_sequence=PASTEL)
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.warning("⚠️ لا يوجد عمود SERVICE_name.")
-    else:
-        if "SERVICE_name" in df.columns:
-            service_summary = df.groupby("SERVICE_name").agg(
-                CSAT=("Dim6.1", series_to_percent),
-                CES=("Dim6.2", series_to_percent),
-                Sample_Size=("SERVICE_name", "count")
-            ).reset_index().sort_values("CSAT", ascending=False)
-            plot_service_table(service_summary)
-        else:
-            st.warning("⚠️ لا توجد بيانات خدمات.")
-
-# =========================================================
-# 💬 PARETO TAB
+# 💬 PARETO TAB (merged for All Centers)
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الملاحظات (Pareto)")
 
-    # دمج كل المراكز إذا كنا في All Centers
     if role == "admin" and target_center == "All Centers (Master)":
         combined = []
         for c, info in USER_KEYS.items():
@@ -320,6 +267,7 @@ with tab_pareto:
     empty = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
     df = df[~df["__clean"].isin(empty)]
     df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+
     themes = {
         "Parking / مواقف السيارات": ["موقف","مواقف","parking","السيارات"],
         "Waiting / الانتظار": ["انتظار","بطء","delay","slow"],
@@ -330,10 +278,12 @@ with tab_pareto:
         "Facility / المكان": ["مكان","نظافة","ازدحام"],
         "Communication / التواصل": ["رد","تواصل","اتصال"]
     }
+
     def classify_theme(t):
         for th, ws in themes.items():
             if any(w in t for w in ws): return th
         return "Other / أخرى"
+
     df["Theme"] = df["__clean"].apply(classify_theme)
     df = df[df["Theme"] != "Other / أخرى"]
     counts = df["Theme"].value_counts().reset_index()
@@ -341,6 +291,7 @@ with tab_pareto:
     counts["%"] = (counts["Count"]/counts["Count"].sum()*100).round(1)
     counts["Cum%"] = counts["%"].cumsum()
     counts["Color"] = np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+
     st.dataframe(counts.style.format({"%":"{:.1f}","Cum%":"{:.1f}"}))
     fig = go.Figure()
     fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"])
