@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v8.5 (Executive Edition)
-Restores All Centers comparisons + sample size per service
+Customer Satisfaction Dashboard — v8.6 (Executive Edition)
+✅ Fix: target_center NameError + restored All Centers logic
+✅ Includes sample size per service
 """
 
 import streamlit as st
@@ -79,6 +80,9 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
 
 center, role = st.session_state["center"], st.session_state["role"]
 
+# ⚙️ إضافة قيمة افتراضية لتفادي الخطأ عند المراكز العادية
+target_center = None
+
 # =========================================================
 # LOAD DATA
 # =========================================================
@@ -150,7 +154,7 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
 ])
 
 # =========================================================
-# 📈 SAMPLE TAB — supports All Centers
+# 📈 SAMPLE TAB
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
@@ -159,21 +163,25 @@ with tab_sample:
     if total == 0:
         st.info("لا توجد بيانات.")
         st.stop()
+
     chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
     grouping = ["CENTER_name"] if "CENTER_name" in df.columns else []
-    if target_center == "All Centers (Master)" and grouping:
+
+    # ✅ إصلاح الشرط — يعمل فقط للأمانة العامة
+    if role == "admin" and target_center == "All Centers (Master)" and grouping:
         summary = df.groupby(grouping).size().reset_index(name="Count")
         fig = px.bar(summary, x="CENTER_name", y="Count", color="CENTER_name",
                      title="عدد الردود حسب المركز", color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
+
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
         counts["%"] = counts["Count"] / total * 100
         title = f"{col.replace('_name','')} — {total:,} رد"
         if chart_type == "دائري Pie":
-            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title,
-                         color_discrete_sequence=PASTEL)
+            fig = px.pie(counts, names=col, values="Count", hole=0.3,
+                         title=title, color_discrete_sequence=PASTEL)
         else:
             fig = px.bar(counts, x=col, y="Count", text="Count", title=title,
                          color=col, color_discrete_sequence=PASTEL)
@@ -203,10 +211,11 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB — All Centers supported + sample size
+# 📋 SERVICES TAB
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
+
     def plot_service_table(df_in):
         df_plot = df_in.copy()
         if "CSAT" not in df_plot.columns: return
@@ -224,6 +233,7 @@ with tab_services:
         fig.update_layout(height=450, margin=dict(l=5, r=5, t=30, b=5))
         st.plotly_chart(fig, use_container_width=True)
 
+    # الأمانة العامة (كل المراكز)
     if role == "admin" and target_center == "All Centers (Master)":
         combined = []
         for c, info in USER_KEYS.items():
@@ -242,8 +252,7 @@ with tab_services:
                 ).reset_index()
                 service_summary = service_summary.sort_values("CSAT", ascending=False)
                 plot_service_table(service_summary)
-                fig = px.bar(service_summary.sort_values("CSAT", ascending=False),
-                             x="SERVICE_name", y="CSAT", color="Center",
+                fig = px.bar(service_summary, x="SERVICE_name", y="CSAT", color="Center",
                              title="الخدمات حسب المركز (CSAT)",
                              color_discrete_sequence=PASTEL)
                 st.plotly_chart(fig, use_container_width=True)
