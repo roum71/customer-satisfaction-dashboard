@@ -1,38 +1,48 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.4.4 Light (Unified, OneDrive Edition)
-- Single codebase for Admin & Centers
-- Admin sees all centers (tabs + master view)
-- Centers see only their data, no file selection
+Customer Satisfaction Dashboard — Secure Role-Based Version
+Auto-load data by credentials, only admin can switch centers
 """
 
 import streamlit as st
 import pandas as pd
-import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
 from pathlib import Path
-import re
-from datetime import datetime
-import io
-import zipfile
 
 # =========================================================
-# 🔒 نظام حماية المراكز وصلاحيات الأمانة العامة
+# 🔐 بيانات الدخول لكل مركز + الملف المرتبط به
 # =========================================================
-
 USER_KEYS = {
-    "Public Services Department": {"password": "psd2025", "role": "center"},
-    "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center"},
-    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center"},
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center"},
-    "Executive Council": {"password": "admin2025", "role": "admin"},  # الأمانة العامة
+    "Public Services Department": {
+        "password": "psd2025",
+        "role": "center",
+        "file": "Center_Public_Services.csv",
+    },
+    "Ras Al Khaimah Municipality": {
+        "password": "rakm2025",
+        "role": "center",
+        "file": "Center_RAK_Municipality.csv",
+    },
+    "Sheikh Saud Center-Ras Al Khaimah Courts": {
+        "password": "ssc2025",
+        "role": "center",
+        "file": "Center_Sheikh_Saud_Courts.csv",
+    },
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": {
+        "password": "ssq2025",
+        "role": "center",
+        "file": "Center_Sheikh_Saqr_Courts.csv",
+    },
+    "Executive Council": {
+        "password": "admin2025",
+        "role": "admin",
+        "file": None,  # الأمانة يمكنها اختيار مركز أو تحميل كل المراكز
+    },
 }
 
-# ------------------------------------------
-# اختيار المركز من الرابط أو القائمة الجانبية
-# ------------------------------------------
+# =========================================================
+# 🧩 تحديد المركز من الرابط (اختياري)
+# =========================================================
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
 center_options = list(USER_KEYS.keys())
@@ -43,9 +53,9 @@ else:
     st.sidebar.header("🏢 اختيار المركز / Select Center")
     selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
 
-# ------------------------------------------
-# التحقق من الجلسة وكلمة المرور
-# ------------------------------------------
+# =========================================================
+# 🔑 التحقق من كلمة المرور
+# =========================================================
 if "authorized" not in st.session_state:
     st.session_state["authorized"] = False
 if "center" not in st.session_state:
@@ -54,111 +64,74 @@ if "role" not in st.session_state:
     st.session_state["role"] = None
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
-    st.sidebar.subheader("🔑 كلمة المرور / Password")
+    st.sidebar.subheader("🔒 كلمة المرور / Password")
     password = st.sidebar.text_input("Password", type="password")
 
     if password == USER_KEYS[selected_center]["password"]:
         st.session_state["authorized"] = True
         st.session_state["center"] = selected_center
         st.session_state["role"] = USER_KEYS[selected_center]["role"]
-        st.success(f"✅ تم التحقق بنجاح: {selected_center}")
+        st.session_state["file"] = USER_KEYS[selected_center]["file"]
+        st.success(f"✅ تم تسجيل الدخول بنجاح كمركز: {selected_center}")
         st.rerun()
     elif password:
         st.error("🚫 كلمة المرور غير صحيحة.")
         st.stop()
     else:
-        st.warning("🔐 يرجى إدخال كلمة المرور.")
+        st.warning("يرجى إدخال كلمة المرور.")
         st.stop()
 
-# ------------------------------------------
-# بعد التحقق من الدخول
-# ------------------------------------------
-role = st.session_state["role"]
+# =========================================================
+# 🎯 تحميل الملف تلقائيًا حسب المركز
+# =========================================================
 center = st.session_state["center"]
-
-st.sidebar.success(f"تم تسجيل الدخول كمركز: {center}")
-
-# =========================================================
-# 📁 تحديد ملف البيانات حسب الدور والصلاحية
-# =========================================================
+role = st.session_state["role"]
+file_path = USER_KEYS[center]["file"]
 
 if role == "admin":
-    st.markdown("### 🏛️ وضع الأمانة العامة — الوصول الكامل")
-    st.info("يمكنك الوصول إلى جميع بيانات المراكز في تبويبات مستقلة أو في ملف تجميعي واحد.")
+    st.markdown("### 🏛️ وضع الأمانة العامة (Admin Mode)")
+    st.info("يمكنك الوصول إلى جميع بيانات المراكز.")
+    
+    # 👇 منسق الأمانة فقط يختار المركز أو عرض الكل
+    target_center = st.selectbox(
+        "اختر المركز لعرض بياناته:",
+        [
+            "All Centers (Master)",
+            "Public Services Department",
+            "Ras Al Khaimah Municipality",
+            "Sheikh Saud Center-Ras Al Khaimah Courts",
+            "Sheikh Saqr Center-Ras Al Khaimah Courts",
+        ],
+    )
 
-    tabs = st.tabs([
-        "📊 دائرة الخدمات العامة",
-        "🏙️ بلدية رأس الخيمة",
-        "⚖️ مركز الشيخ سعود - المحاكم",
-        "⚖️ مركز الشيخ صقر - المحاكم",
-        "🌐 كل المراكز معًا (تجميعي)",
-    ])
+    if target_center == "All Centers (Master)":
+        file_path = "Centers_Master.csv"
+    else:
+        file_path = USER_KEYS[target_center]["file"]
 
-    with tabs[0]:
-        st.subheader("📈 دائرة الخدمات العامة")
-        selected_file = "Center_Public_Services.csv"
-        st.success("✅ تم تحميل بيانات دائرة الخدمات العامة.")
-        # show_dashboard(selected_file)
-
-    with tabs[1]:
-        st.subheader("📈 بلدية رأس الخيمة")
-        selected_file = "Center_RAK_Municipality.csv"
-        st.success("✅ تم تحميل بيانات بلدية رأس الخيمة.")
-        # show_dashboard(selected_file)
-
-    with tabs[2]:
-        st.subheader("📈 مركز الشيخ سعود - محاكم رأس الخيمة")
-        selected_file = "Center_Sheikh_Saud_Courts.csv"
-        st.success("✅ تم تحميل بيانات مركز الشيخ سعود.")
-        # show_dashboard(selected_file)
-
-    with tabs[3]:
-        st.subheader("📈 مركز الشيخ صقر - محاكم رأس الخيمة")
-        selected_file = "Center_Sheikh_Saqr_Courts.csv"
-        st.success("✅ تم تحميل بيانات مركز الشيخ صقر.")
-        # show_dashboard(selected_file)
-
-    with tabs[4]:
-        st.subheader("🌐 تقرير الأمانة العامة - كل المراكز")
-        selected_file = "Centers_Master.csv"
-        st.success("✅ تم تحميل الملف الموحد لجميع المراكز.")
-        # show_dashboard(selected_file)
+    st.success(f"📂 تم تحديد الملف: {file_path}")
 
 else:
-    # 🔒 المستخدم العادي يرى فقط مركزه
-    if center == "Public Services Department":
-        selected_file = "Center_Public_Services.csv"
-    elif center == "Ras Al Khaimah Municipality":
-        selected_file = "Center_RAK_Municipality.csv"
-    elif center == "Sheikh Saud Center-Ras Al Khaimah Courts":
-        selected_file = "Center_Sheikh_Saud_Courts.csv"
-    elif center == "Sheikh Saqr Center-Ras Al Khaimah Courts":
-        selected_file = "Center_Sheikh_Saqr_Courts.csv"
-    else:
-        st.error("⚠️ لا يوجد ملف بيانات مرتبط بهذا المركز.")
-        st.stop()
-
-    # لا عرض لأي عناصر تحميل أو رفع
-    st.sidebar.empty()
-    st.sidebar.success(f"📂 تم تحميل بيانات المركز تلقائيًا.")
-    st.info(f"✅ الملف المستخدم: {selected_file}")
-    # show_dashboard(selected_file)
+    # 🔒 المستخدم العادي لا يرى أي اختيار
+    st.markdown(f"### 📊 لوحة مركز {center}")
+    st.info(f"📂 يتم تحميل البيانات تلقائيًا من: **{file_path}**")
 
 # =========================================================
-# 🧠 هنا يبدأ الكود الرئيسي لتحميل الملف وتحليل البيانات
+# 📥 تحميل البيانات
+# =========================================================
+try:
+    df = pd.read_csv(file_path, encoding="utf-8")
+    st.success(f"✅ تم تحميل البيانات ({len(df)} صفًا)")
+except Exception as e:
+    st.error(f"❌ تعذر تحميل الملف: {e}")
+    st.stop()
+
+# =========================================================
+# 🧠 هنا يبدأ التحليل الفعلي للبيانات
 # =========================================================
 
-# =========================================================
-# 🧠 هنا يبدأ الكود الرئيسي لتحميل الملف وتحليل البيانات
-# =========================================================
-
-
-
-
-# =========================================================
-# 🧠 هنا يبدأ الكود الرئيسي لتحميل الملف وتحليل البيانات
-# =========================================================
-
+st.write("✅ البيانات جاهزة للعرض والتحليل.")
+st.dataframe(df.head())
 
 
 
@@ -764,6 +737,7 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
 
