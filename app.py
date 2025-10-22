@@ -223,73 +223,9 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
     # =========================================================
-    # 📈 جدول أعلى / أدنى / متوسط من ملف Centers_Master.csv
+    # 📈 جدول أعلى / أدنى / متوسط من ملف Centers_Master.csv  لاحقا
     # =========================================================
-    try:
-        df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
-
-        # اكتشاف الأعمدة تلقائيًا
-        col_map = {}
-        for c in df_master.columns:
-            c_low = c.lower().strip()
-            if "center" in c_low:
-                col_map[c] = "Center"
-            elif "csat" in c_low or "dim6.1" in c_low:
-                col_map[c] = "CSAT"
-            elif "ces" in c_low or "dim6.2" in c_low:
-                col_map[c] = "CES"
-            elif "nps" in c_low or "recommend" in c_low:
-                col_map[c] = "NPS"
-
-        df_master.rename(columns=col_map, inplace=True)
-
-        # تأكد من الأعمدة المطلوبة
-        if all(k in df_master.columns for k in ["Center", "CSAT", "CES", "NPS"]):
-            df_master[["CSAT", "CES", "NPS"]] = df_master[["CSAT", "CES", "NPS"]].apply(pd.to_numeric, errors="coerce")
-
-            # استخراج الإحصاءات العامة
-            summary = pd.DataFrame({
-                "المؤشر": ["CSAT", "CES", "NPS"],
-                "أعلى قيمة": [
-                    round(df_master["CSAT"].max(), 1),
-                    round(df_master["CES"].max(), 1),
-                    round(df_master["NPS"].max(), 1)
-                ],
-                "أدنى قيمة": [
-                    round(df_master["CSAT"].min(), 1),
-                    round(df_master["CES"].min(), 1),
-                    round(df_master["NPS"].min(), 1)
-                ],
-                "المتوسط": [
-                    round(df_master["CSAT"].mean(), 1),
-                    round(df_master["CES"].mean(), 1),
-                    round(df_master["NPS"].mean(), 1)
-                ]
-            })
-
-            # نتيجة المركز الحالي (إن وجدت)
-            if center in df_master["Center"].values:
-                center_row = df_master[df_master["Center"] == center][["CSAT", "CES", "NPS"]].iloc[0]
-                current_data = pd.DataFrame({
-                    "المؤشر": ["CSAT", "CES", "NPS"],
-                    "نتيجة المركز": [
-                        round(center_row["CSAT"], 1),
-                        round(center_row["CES"], 1),
-                        round(center_row["NPS"], 1)
-                    ]
-                })
-                summary = summary.merge(current_data, on="المؤشر", how="left")
-
-            st.markdown("### 📋 مقارنة موجزة مع باقي المراكز")
-            st.dataframe(summary.style.format("{:.1f}"), use_container_width=True)
-        else:
-            st.warning("⚠️ ملف المقارنة لا يحتوي على الأعمدة المطلوبة (Center, CSAT, CES, NPS).")
-
-    except Exception as e:
-        st.warning(f"⚠️ تعذر قراءة ملف المقارنة: {e}")
-
-
-
+   
 
 
 
@@ -405,6 +341,7 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
 
