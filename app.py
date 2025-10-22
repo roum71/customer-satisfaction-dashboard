@@ -218,11 +218,30 @@ with tab_kpis:
                    'bar':{'color':'#2ecc71'}}))
         col.plotly_chart(fig, use_container_width=True)
 
+
+
 # =========================================================
-# 📋 SERVICES TAB (ADMIN OR CENTER)
+# 📋 SERVICES TAB (ADMIN OR CENTER) — PLOTLY TABLE VERSION
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
+
+    def plot_service_table(df_in):
+        """عرض جدول الخدمات بألوان تفاعلية حسب CSAT"""
+        df_plot = df_in.copy()
+        df_plot["CSAT_color"] = np.where(df_plot["CSAT"] >= 80, "#c8f7c5",
+                                 np.where(df_plot["CSAT"] >= 60, "#fff3b0", "#f5b7b1"))
+        header_color = "#2c3e50"
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=list(df_plot.columns),
+                        fill_color=header_color,
+                        align='center', font=dict(color='white', size=13)),
+            cells=dict(values=[df_plot[c] for c in df_plot.columns],
+                       fill_color=[[c for c in df_plot["CSAT_color"]] for _ in df_plot.columns],
+                       align='center', font=dict(size=12)))
+        ])
+        fig.update_layout(height=400, margin=dict(l=5, r=5, t=30, b=5))
+        st.plotly_chart(fig, use_container_width=True)
 
     if role == "admin":
         combined = []
@@ -234,18 +253,18 @@ with tab_services:
         if combined:
             all_df = pd.concat(combined, ignore_index=True)
             if "SERVICE_name" in all_df.columns:
-                service_summary = all_df.groupby(["Center","SERVICE_name"]).agg({
+                service_summary = all_df.groupby(["Center", "SERVICE_name"]).agg({
                     "Dim6.1": series_to_percent,
                     "Dim6.2": series_to_percent
-                }).reset_index()
-                service_summary["CSAT_color"] = np.where(service_summary["Dim6.1"]>=80,"#c8f7c5",
-                                               np.where(service_summary["Dim6.1"]>=60,"#fcf3cf","#f5b7b1"))
-                st.dataframe(service_summary.style.background_gradient(subset=["Dim6.1"], cmap="Greens"), use_container_width=True)
+                }).reset_index().rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES"})
+                service_summary = service_summary.sort_values(by="CSAT", ascending=False)
+                plot_service_table(service_summary)
 
-                fig = px.bar(service_summary.sort_values("Dim6.1", ascending=False),
-                             x="SERVICE_name", y="Dim6.1", color="Center",
+                fig = px.bar(service_summary.sort_values("CSAT", ascending=False),
+                             x="SERVICE_name", y="CSAT", color="Center",
                              title="الخدمات مرتبة حسب مؤشر CSAT",
                              color_discrete_sequence=PASTEL)
+                fig.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.warning("⚠️ لم يتم العثور على عمود SERVICE_name في الملفات.")
@@ -256,21 +275,42 @@ with tab_services:
             service_summary = df.groupby("SERVICE_name").agg({
                 "Dim6.1": series_to_percent,
                 "Dim6.2": series_to_percent
-            }).reset_index()
-            st.dataframe(service_summary.style.background_gradient(subset=["Dim6.1"], cmap="Greens"), use_container_width=True)
+            }).reset_index().rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES"})
+            service_summary = service_summary.sort_values(by="CSAT", ascending=False)
+            plot_service_table(service_summary)
         else:
             st.warning("⚠️ لا توجد بيانات خدمات في هذا المركز.")
 
+
+
+
 # =========================================================
-# 🏛️ CENTER COMPARISON TAB
+# 🏛️ CENTER COMPARISON TAB — PLOTLY TABLE VERSION
 # =========================================================
 with tab_compare:
     st.subheader("🏛️ مقارنة المراكز")
 
+    def plot_center_table(df_in):
+        """عرض جدول المقارنة بين المراكز بألوان حسب CSAT"""
+        df_plot = df_in.copy()
+        df_plot["CSAT_color"] = np.where(df_plot["CSAT"] >= 80, "#c8f7c5",
+                                 np.where(df_plot["CSAT"] >= 60, "#fff3b0", "#f5b7b1"))
+        header_color = "#2c3e50"
+        fig = go.Figure(data=[go.Table(
+            header=dict(values=list(df_plot.columns),
+                        fill_color=header_color,
+                        align='center', font=dict(color='white', size=13)),
+            cells=dict(values=[df_plot[c] for c in df_plot.columns],
+                       fill_color=[[c for c in df_plot["CSAT_color"]] for _ in df_plot.columns],
+                       align='center', font=dict(size=12)))
+        ])
+        fig.update_layout(height=400, margin=dict(l=5, r=5, t=30, b=5))
+        st.plotly_chart(fig, use_container_width=True)
+
     try:
         df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
 
-        # اكتشاف الأعمدة تلقائياً
+        # اكتشاف الأعمدة تلقائيًا
         col_map = {}
         for c in df_master.columns:
             c_low = c.lower().strip()
@@ -281,13 +321,16 @@ with tab_compare:
         df_master.rename(columns=col_map, inplace=True)
 
         df_master = df_master[["Center","CSAT","CES","NPS"]].sort_values(by="CSAT", ascending=False)
-        st.dataframe(df_master, use_container_width=True)
+        plot_center_table(df_master)
 
         fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
-                     color_continuous_scale=["#f5b7b1","#fcf3cf","#c8f7c5"], title="ترتيب المراكز حسب CSAT")
+                     color_continuous_scale=["#f5b7b1","#fcf3cf","#c8f7c5"],
+                     title="ترتيب المراكز حسب CSAT")
+        fig.update_layout(xaxis_title="المركز", yaxis_title="CSAT (%)")
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         st.warning(f"⚠️ تعذر تحميل ملف المقارنة: {e}")
+
 
 # =========================================================
 # 💬 PARETO TAB
@@ -338,3 +381,4 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
