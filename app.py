@@ -246,62 +246,68 @@ with tab_kpis:
 # =========================================================
 
 
+
 # =========================================================
-# 📋 الخدمات — الأسماء وعدد الردود فقط
+# 📋 تحليل الخدمات — دعم جميع أسماء الأعمدة الممكنة
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
 
-    # تحديد عمود اسم الخدمة
-    service_col = None
-    for c in df.columns:
-        if "service_name" in c.lower() or "اسم" in c:
-            service_col = c
-            break
+    # 🔍 اكتشاف ذكي لعمود الخدمة
+    service_candidates = [c for c in df.columns if re.search(r'(serv|خدم)', c, re.IGNORECASE)]
+    if not service_candidates:
+        st.warning("⚠️ لم يتم العثور على عمود يمثل اسم الخدمة. يرجى التأكد أن ملف البيانات يحتوي على عمود باسم مثل 'Service' أو 'اسم الخدمة'.")
+        st.info(f"🧩 الأعمدة المتوفرة حاليًا: {', '.join(df.columns[:20])} ...")
+        st.stop()
 
-    if not service_col:
-        st.warning("⚠️ لا يوجد عمود اسم خدمة (SERVICE_name).")
-    else:
-        service_summary = (
-            df.groupby(service_col)
-              .agg(
-                  CSAT=("Dim6.1", series_to_percent),
-                  CES=("Dim6.2", series_to_percent),
-                  عدد_الردود=(service_col, "count")
-              )
-              .reset_index()
-              .sort_values("CSAT", ascending=False)
-        )
+    # استخدام أول عمود مرشح
+    service_col = service_candidates[0]
 
-        # تصنيف لوني بسيط
-        service_summary["التصنيف اللوني"] = np.select(
-            [
-                service_summary["CSAT"] >= 80,
-                service_summary["CSAT"] >= 60
-            ],
-            ["🟢 مرتفع", "🟡 متوسط"],
-            default="🔴 منخفض"
-        )
+    # 🔹 محاولة العثور على عمود الاسم المكافئ (name أو Arabic)
+    name_candidates = [c for c in df.columns if re.search(r'(name|arabic|english|اسم)', c, re.IGNORECASE) and re.search(r'(serv|خدم)', c, re.IGNORECASE)]
+    service_display_col = name_candidates[0] if name_candidates else service_col
 
-        # عرض الجدول
-        st.dataframe(
-            service_summary[["التصنيف اللوني", service_col, "عدد_الردود", "CSAT", "CES"]]
-            .style.format({"CSAT": "{:.1f}", "CES": "{:.1f}"}),
-            use_container_width=True
-        )
+    # 🔹 حساب مؤشرات الخدمات
+    service_summary = (
+        df.groupby(service_display_col)
+          .agg(
+              CSAT=("Dim6.1", series_to_percent),
+              CES=("Dim6.2", series_to_percent),
+              عدد_الردود=(service_display_col, "count")
+          )
+          .reset_index()
+          .sort_values("CSAT", ascending=False)
+    )
 
-        # رسم بياني مبسط للخدمات
-        fig_bar = px.bar(
-            service_summary,
-            x=service_col, y="CSAT",
-            text="عدد_الردود",
-            color="التصنيف اللوني",
-            color_discrete_map={"🟢 مرتفع": "#c8f7c5", "🟡 متوسط": "#fcf3cf", "🔴 منخفض": "#f5b7b1"},
-            title="رضا المتعاملين حسب الخدمة (CSAT)",
-        )
-        fig_bar.update_traces(textposition="outside")
-        fig_bar.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
-        st.plotly_chart(fig_bar, use_container_width=True)
+    # 🔹 إضافة تصنيف لوني واضح
+    service_summary["التصنيف اللوني"] = np.select(
+        [
+            service_summary["CSAT"] >= 80,
+            service_summary["CSAT"] >= 60
+        ],
+        ["🟢 مرتفع", "🟡 متوسط"],
+        default="🔴 منخفض"
+    )
+
+    # 🔹 عرض الجدول بوضوح
+    st.dataframe(
+        service_summary[["التصنيف اللوني", service_display_col, "عدد_الردود", "CSAT", "CES"]]
+        .style.format({"CSAT": "{:.1f}", "CES": "{:.1f}"}),
+        use_container_width=True
+    )
+
+    # 🔹 رسم بياني مرتب حسب CSAT
+    fig_bar = px.bar(
+        service_summary.sort_values("CSAT", ascending=False),
+        x=service_display_col, y="CSAT",
+        text="عدد_الردود",
+        color="التصنيف اللوني",
+        color_discrete_map={"🟢 مرتفع": "#c8f7c5", "🟡 متوسط": "#fcf3cf", "🔴 منخفض": "#f5b7b1"},
+        title="📊 مؤشر رضا المتعاملين (CSAT) حسب الخدمة"
+    )
+    fig_bar.update_traces(textposition="outside")
+    fig_bar.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
+    st.plotly_chart(fig_bar, use_container_width=True)
 
 # =========================================================
 # 💬 Pareto
@@ -351,6 +357,7 @@ with tab_pareto:
                           yaxis=dict(title="عدد الملاحظات"),
                           yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"))
         st.plotly_chart(fig, use_container_width=True)
+
 
 
 
