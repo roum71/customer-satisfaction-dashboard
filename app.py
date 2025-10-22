@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v7.9 (Full Secure + Lookup + Gauges + Smart Filters + Sorted Services + Pareto AI Themes)
+Customer Satisfaction Dashboard — v8.1
+Full Secure + Center Comparison + Lookup + Gauges + Smart Filters + Sorted Services + Pareto + Data Export
 """
 
 import streamlit as st
@@ -9,13 +10,13 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
-import re
-from pathlib import Path
 import io
+import re
 from datetime import datetime
+from pathlib import Path
 
 # =========================================================
-# 🔐 USERS & ACCESS CONTROL
+# 🔐 USERS
 # =========================================================
 USER_KEYS = {
     "Public Services Department": {"password": "psd2025", "role": "center", "file": "Center_Public_Services.csv"},
@@ -26,13 +27,13 @@ USER_KEYS = {
 }
 
 # =========================================================
-# 🎨 PAGE CONFIG
+# PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 7.9", layout="wide")
+st.set_page_config(page_title="لوحة مؤشرات رضا المتعاملين — الإصدار 8.1", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🌍 LANGUAGE
+# LANGUAGE
 # =========================================================
 lang = st.sidebar.radio("🌍 اللغة / Language", ["العربية", "English"], index=0)
 if lang == "العربية":
@@ -43,7 +44,7 @@ if lang == "العربية":
     """, unsafe_allow_html=True)
 
 # =========================================================
-# 🔑 LOGIN
+# LOGIN
 # =========================================================
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
@@ -59,7 +60,7 @@ if "authorized" not in st.session_state:
     st.session_state.update({"authorized": False, "center": None, "role": None})
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
-    st.sidebar.subheader("🔒 كلمة المرور / Password")
+    st.sidebar.subheader("🔑 كلمة المرور / Password")
     password = st.sidebar.text_input("Password", type="password")
     if password == USER_KEYS[selected_center]["password"]:
         st.session_state.update({
@@ -80,7 +81,7 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
 center, role = st.session_state["center"], st.session_state["role"]
 
 # =========================================================
-# 📥 LOAD DATA
+# LOAD DATA
 # =========================================================
 if role == "admin":
     st.markdown("### 🏛️ وضع الأمانة العامة")
@@ -89,7 +90,6 @@ if role == "admin":
 else:
     file_path = USER_KEYS[center]["file"]
     st.markdown(f"### 📊 لوحة مركز {center}")
-    st.info("📂 يتم تحميل البيانات الخاصة بالمركز فقط.")
 
 try:
     df = pd.read_csv(file_path, encoding="utf-8", low_memory=False)
@@ -98,10 +98,10 @@ except Exception as e:
     st.stop()
 
 # =========================================================
-# 📗 LOOKUP TABLES
+# LOOKUP TABLES
 # =========================================================
-lookup_catalog = {}
 lookup_path = Path("Data_tables.xlsx")
+lookup_catalog = {}
 if lookup_path.exists():
     xls = pd.ExcelFile(lookup_path)
     for sheet in xls.sheet_names:
@@ -119,9 +119,9 @@ if lookup_path.exists():
                 df.drop(columns=[merge_key], inplace=True, errors="ignore")
 
 # =========================================================
-# 🧮 FUNCTIONS
+# FUNCTIONS
 # =========================================================
-def series_to_percent(vals: pd.Series) -> float:
+def series_to_percent(vals):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
     if len(vals) == 0: return np.nan
     mx = vals.max()
@@ -134,11 +134,11 @@ def detect_nps(df):
     if not cands: return np.nan
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
     if len(s)==0: return np.nan
-    promoters = (s >= 9).sum(); detractors = (s <= 6).sum()
+    promoters = (s>=9).sum(); detractors = (s<=6).sum()
     return (promoters - detractors)/len(s)*100
 
 # =========================================================
-# 🎛️ FILTERS
+# FILTERS
 # =========================================================
 filter_cols = [c for c in df.columns if c.endswith("_name") and c.upper() in ["GENDER_NAME","SERVICE_NAME","SECTOR_NAME","NATIONALITY_NAME","CENTER_NAME"]]
 filters = {}
@@ -151,37 +151,49 @@ for col, values in filters.items():
     df = df[df[col].isin(values)]
 
 # =========================================================
-# 📊 TABS
+# TABS
 # =========================================================
-tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs(["📈 توزيع العينة","📊 المؤشرات","📋 الخدمات","💬 Pareto"])
+tab_data, tab_sample, tab_kpis, tab_services, tab_compare, tab_pareto = st.tabs([
+    "📁 البيانات","📈 توزيع العينة","📊 المؤشرات","📋 الخدمات","🏛️ مقارنة المراكز","💬 Pareto"
+])
 
 # =========================================================
-# 📈 SAMPLE
+# 📁 DATA TAB
+# =========================================================
+with tab_data:
+    st.subheader("📁 البيانات بعد الفلاتر الحالية")
+    st.dataframe(df, use_container_width=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Filtered_Data")
+    st.download_button("📥 تنزيل البيانات الحالية (Excel)", data=buffer.getvalue(),
+                       file_name=f"Filtered_Data_{ts}.xlsx",
+                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# =========================================================
+# 📈 SAMPLE TAB
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-
     chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
-
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
         counts["%"] = counts["Count"]/total*100
         title = f"{col.replace('_name','')} — {total:,} رد"
-
         if chart_type == "دائري Pie":
             fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
             fig.update_traces(text=counts["Count"], textinfo="value+label")
         else:
             fig = px.bar(counts, x=col, y="Count", text="Count", title=title, color=col, color_discrete_sequence=PASTEL)
             fig.update_traces(textposition="outside")
-
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs
+# 📊 KPIs TAB
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
@@ -203,66 +215,36 @@ with tab_kpis:
         col.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB (Sorted + Export)
+# 🏛️ CENTER COMPARISON TAB
 # =========================================================
-with tab_services:
-    st.subheader("📋 تحليل حسب الخدمة")
+with tab_compare:
+    st.subheader("🏛️ مقارنة المراكز")
 
-    if "SERVICE_name" in df.columns:
-        service_data = df.groupby("SERVICE_name").agg({
-            "Dim6.1": series_to_percent,
-            "Dim6.2": series_to_percent
-        }).reset_index()
-        service_data.rename(columns={"Dim6.1":"CSAT","Dim6.2":"CES"}, inplace=True)
+    try:
+        df_master = pd.read_csv("Centers_Master.csv", encoding="utf-8")
+        df_master = df_master[["Center", "CSAT", "CES", "NPS"]]
+        df_master = df_master.sort_values(by="CSAT", ascending=False)
+        st.dataframe(df_master.style.format({"CSAT":"{:.1f}","CES":"{:.1f}","NPS":"{:.1f}"}), use_container_width=True)
 
-        nps_col = next((c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()), None)
-        if nps_col:
-            nps_vals=[]
-            for sname, g in df.groupby("SERVICE_name"):
-                s=pd.to_numeric(g[nps_col],errors="coerce").dropna()
-                if len(s)>0:
-                    promoters=(s>=9).sum(); detractors=(s<=6).sum()
-                    score=(promoters-detractors)/len(s)*100
-                else: score=np.nan
-                nps_vals.append({"SERVICE_name":sname,"NPS":score})
-            service_data=service_data.merge(pd.DataFrame(nps_vals),on="SERVICE_name",how="left")
+        fig = px.bar(df_master, x="Center", y="CSAT", color="CSAT",
+                     color_continuous_scale=["#f5b7b1","#fcf3cf","#c8f7c5"], title="ترتيب المراكز حسب CSAT")
+        st.plotly_chart(fig, use_container_width=True)
 
-        counts=df["SERVICE_name"].value_counts().reset_index()
-        counts.columns=["SERVICE_name","Count"]
-        service_data=counts.merge(service_data,on="SERVICE_name",how="left")
-        service_data.sort_values(by="CSAT",ascending=False,inplace=True)
-
-        def highlight(val):
-            if pd.isna(val): return "background-color:white;"
-            if val>=80: return "background-color:#c8f7c5;"
-            elif val<60: return "background-color:#f5b7b1;"
-            else: return "background-color:#fcf3cf;"
-
-        st.dataframe(service_data.style.applymap(highlight,subset=["CSAT"]).format({"CSAT":"{:.1f}","CES":"{:.1f}","NPS":"{:.1f}","Count":"{:,.0f}"}))
-        st.caption("🟩 ≥80 ممتاز | 🟨 60–80 متوسط | 🟥 <60 ضعيف")
-
-        # 📥 EXPORT CLEAN DATA
-        clean_cols=[c for c in df.columns if c.endswith("_name") or c.lower().startswith("dim") or c.lower() in ["nps","center","service","gender","sector","nationality"]]
-        df_clean=df[clean_cols].copy()
-        df_clean.columns=[c.replace("_name","").capitalize() for c in df_clean.columns]
-
-        buffer=io.BytesIO()
-        ts=datetime.now().strftime("%Y-%m-%d_%H%M")
-        with pd.ExcelWriter(buffer,engine="openpyxl") as writer:
-            df_clean.to_excel(writer,index=False,sheet_name="Clean_Data")
-
-        st.download_button("📥 تنزيل البيانات النظيفة (Excel)",data=buffer.getvalue(),
-                           file_name=f"Clean_Customer_Data_{ts}.xlsx",
+        # 📥 Export comparison
+        buffer = io.BytesIO()
+        with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+            df_master.to_excel(writer, index=False, sheet_name="Center_Comparison")
+        st.download_button("📥 تنزيل مقارنة المراكز (Excel)", data=buffer.getvalue(),
+                           file_name=f"Centers_Comparison_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    else:
-        st.warning("⚠️ لا يوجد عمود SERVICE_name في البيانات.")
+    except Exception as e:
+        st.warning(f"⚠️ تعذر تحميل ملف Centers_Master.csv: {e}")
 
 # =========================================================
-# 💬 PARETO ANALYSIS (Smart Themes + Filters)
+# 💬 PARETO TAB
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل نصوص الملاحظات (Pareto المحاور الفعلية)")
-
     text_cols=[c for c in df.columns if any(k in c.lower() for k in ["most_unsat","comment","ملاحظ","reason"])]
     if text_cols:
         col=text_cols[0]
