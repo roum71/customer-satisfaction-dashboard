@@ -71,7 +71,7 @@ df = None
 data_source_label = "📂 مصدر البيانات" if lang=="العربية" else "📂 Data Source"
 if ONEDRIVE_MODE and ONEDRIVE_LINKS:
     st.sidebar.subheader(data_source_label + " — OneDrive")
-    params = st.experimental_get_query_params()
+    params = st.query_params
     default_center = params.get("center", [None])[0]
     centers = list(ONEDRIVE_LINKS.keys())
     if default_center and default_center in centers:
@@ -625,5 +625,6 @@ else:
             icon="ℹ️")
 
 st.success("✅ تم إنشاء جميع التحليلات والوظائف (نسخة خفيفة بدون WordCloud).")
+
 
 
