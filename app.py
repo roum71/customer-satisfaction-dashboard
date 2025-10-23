@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.7 (Executive Edition)
-Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
+Customer Satisfaction Dashboard — v10.10 (Executive Edition)
+Unified | Multi-Center | Lookup | KPI Gauges | Pareto | Dimensions
 """
 
 import streamlit as st
@@ -107,34 +107,46 @@ if lookup_path.exists():
         lookup_catalog[sheet.upper()] = tbl
 
 # =========================================================
-# UTILS
+# FUNCTIONS
 # =========================================================
 def series_to_percent(vals):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
     if len(vals) == 0:
         return np.nan
     mx = vals.max()
-    if mx <= 5: return ((vals - 1)/4*100).mean()
-    elif mx <= 10: return ((vals - 1)/9*100).mean()
-    else: return vals.mean()
+    if mx <= 5:
+        return ((vals - 1)/4*100).mean()
+    elif mx <= 10:
+        return ((vals - 1)/9*100).mean()
+    else:
+        return vals.mean()
 
 def detect_nps(df):
     cands = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
-    if not cands: return np.nan
+    if not cands:
+        return np.nan, 0, 0, 0
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
-    if len(s)==0: return np.nan
-    promoters = (s>=9).sum(); detractors = (s<=6).sum()
-    return (promoters - detractors)/len(s)*100
+    if len(s) == 0:
+        return np.nan, 0, 0, 0
+    promoters = (s >= 9).sum()
+    passives = ((s >= 7) & (s <= 8)).sum()
+    detractors = (s <= 6).sum()
+    total = len(s)
+    promoters_pct = promoters / total * 100
+    passives_pct = passives / total * 100
+    detractors_pct = detractors / total * 100
+    nps = promoters_pct - detractors_pct
+    return nps, promoters_pct, passives_pct, detractors_pct
 
 # =========================================================
-# FILTERS
+# FILTERS — show names instead of codes
 # =========================================================
-filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
+filter_cols = [c for c in df.columns if c.endswith("_name")]
 filters = {}
 with st.sidebar.expander("🎛️ الفلاتر / Filters"):
     for col in filter_cols:
         options = df[col].dropna().unique().tolist()
-        selection = st.multiselect(col, options, default=options)
+        selection = st.multiselect(col.replace("_name", ""), options, default=options)
         filters[col] = selection
 for col, values in filters.items():
     df = df[df[col].isin(values)]
@@ -142,70 +154,56 @@ for col, values in filters.items():
 # =========================================================
 # TABS
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs(
-    ["البيانات", "📈 توزيع العينة", "📊 المؤشرات", "📋 الخدمات", "💬 Pareto"]
+tab_data, tab_sample, tab_kpis, tab_services, tab_dimensions, tab_pareto = st.tabs(
+    ["البيانات", "📈 توزيع العينة", "📊 المؤشرات", "📋 الخدمات", "🧩 الأبعاد", "💬 Pareto"]
 )
 
 # =========================================================
-# 📁 DATA TAB — Multi-language headers
+# 📁 DATA TAB
 # =========================================================
 with tab_data:
-    st.subheader("📁 البيانات بعد الفلاتر")
-
-    questions_map_ar, questions_map_en = {}, {}
-    if "QUESTIONS" in lookup_catalog:
-        qtbl = lookup_catalog["QUESTIONS"]
-        qtbl.columns = [c.strip().upper() for c in qtbl.columns]
-        code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
-        ar_col = next((c for c in qtbl.columns if "ARABIC" in c or c == "ARABIC"), None)
-        en_col = next((c for c in qtbl.columns if "ENGLISH" in c or c == "ENGLISH"), None)
-
-        if code_col and ar_col and en_col:
-            qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip().str.upper()
-            questions_map_ar = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col]))
-            questions_map_en = dict(zip(qtbl["CODE_NORM"], qtbl[en_col]))
-
-    df_display = df.copy()
-    df_display.columns = [c.strip() for c in df_display.columns]
-    ar_row = [questions_map_ar.get(c.strip().upper(), "") for c in df_display.columns]
-    en_row = [questions_map_en.get(c.strip().upper(), "") for c in df_display.columns]
-    df_final = pd.concat([pd.DataFrame([ar_row, en_row], columns=df_display.columns), df_display], ignore_index=True)
-
-    st.dataframe(df_final, use_container_width=True)
-    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df_final.to_excel(writer, index=False)
-    st.download_button("📥 تنزيل البيانات", buffer.getvalue(), file_name=f"Filtered_Data_{ts}.xlsx")
+    st.subheader("📁 البيانات بعد الفلاتر الحالية")
+    st.dataframe(df, use_container_width=True)
 
 # =========================================================
-# 📈 SAMPLE TAB
+# 📈 SAMPLE TAB — Pie shows counts
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
+    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة عمودية", "أعمدة أفقية"], index=0, horizontal=True)
+
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
-        counts.columns = [col, "Count"]
-        counts["%"] = counts["Count"]/total*100
-        title = f"{col} — {total:,} رد"
+        counts.columns = [col, "عدد الردود"]
+        title = f"{col.replace('_name', '')} — {total:,} رد"
+
         if chart_type == "دائري Pie":
-            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
+            fig = px.pie(counts, names=col, values="عدد الردود", hole=0.3,
+                         title=title, color_discrete_sequence=PASTEL)
+            fig.update_traces(text=counts["عدد الردود"], textinfo="value+label")
+        elif chart_type == "أعمدة عمودية":
+            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود",
+                         title=title, color=col, color_discrete_sequence=PASTEL)
+            fig.update_traces(textposition="outside")
         else:
-            fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
+            fig = px.bar(counts, y=col, x="عدد الردود", orientation="h", text="عدد الردود",
+                         title=title, color=col, color_discrete_sequence=PASTEL)
+            fig.update_traces(textposition="outside")
         st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
-# 📊 KPIs TAB
+# 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
 with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-    nps = detect_nps(df)
-    for val, name in zip([csat, ces, nps], ["CSAT", "CES", "NPS"]):
+    nps, prom, passv, detr = detect_nps(df)
+
+    c1, c2, c3 = st.columns(3)
+    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=val if not np.isnan(val) else 0,
@@ -215,69 +213,70 @@ with tab_kpis:
                              {'range': [60, 80], 'color': '#fcf3cf'},
                              {'range': [80, 100], 'color': '#c8f7c5'}],
                    'bar': {'color': '#2ecc71'}}))
-        st.plotly_chart(fig, use_container_width=True)
+        col.plotly_chart(fig, use_container_width=True)
+
+    st.markdown(f"""
+    #### 🔎 تفاصيل مؤشر NPS
+    - **Promoters (المروجون):** {prom:.1f}%
+    - **Passives (المحايدون):** {passv:.1f}%
+    - **Detractors (المعارضون):** {detr:.1f}%
+    """)
 
 # =========================================================
-# 📋 SERVICES TAB
+# 🧩 DIMENSIONS TAB — New
 # =========================================================
-with tab_services:
-    st.subheader("📋 تحليل الخدمات")
-
-    service_col = next((c for c in df.columns if "SERVICE" in c.upper()), None)
-    if not service_col:
-        st.warning("⚠️ لا يوجد عمود خدمة في البيانات.")
+with tab_dimensions:
+    st.subheader("🧩 تحليل الأبعاد")
+    dim_cols = [c for c in df.columns if re.match(r"Dim\d", c)]
+    if not dim_cols:
+        st.warning("⚠️ لا توجد أعمدة للأبعاد (Dim).")
     else:
-        if "SERVICE" in lookup_catalog:
-            st.info("📘 تم استخدام ملف الترجمة لعرض أسماء الخدمات.")
-            st_df = lookup_catalog["SERVICE"]
-            st_df.columns = [c.strip().upper() for c in st_df.columns]
-            code_col = next((c for c in st_df.columns if "CODE" in c or "SERVICE" in c), None)
-            ar_col = next((c for c in st_df.columns if "ARABIC" in c), None)
-            en_col = next((c for c in st_df.columns if "ENGLISH" in c), None)
+        summary = []
+        for col in dim_cols:
+            avg = series_to_percent(df[col])
+            summary.append({"Dimension": col, "Score": avg})
+        dims = pd.DataFrame(summary).dropna()
+
+        # ربط بالأسماء من ملف Data_tables.xlsx إن وُجد
+        if "QUESTIONS" in lookup_catalog:
+            qtbl = lookup_catalog["QUESTIONS"]
+            qtbl.columns = [c.strip().upper() for c in qtbl.columns]
+            code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
+            ar_col = next((c for c in qtbl.columns if "ARABIC" in c), None)
+            en_col = next((c for c in qtbl.columns if "ENGLISH" in c), None)
             if code_col and ar_col and en_col:
-                name_map = dict(zip(st_df[code_col].astype(str).str.strip(), st_df[ar_col if lang=="العربية" else en_col]))
-                df[service_col] = df[service_col].astype(str).replace(name_map)
+                qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip()
+                name_map = dict(zip(qtbl["CODE_NORM"],
+                                    qtbl[ar_col if lang == "العربية" else en_col]))
+                dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
-        summary = df.groupby(service_col).agg({
-            "Dim6.1": series_to_percent,
-            "Dim6.2": series_to_percent
-        }).reset_index().rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES"})
-        summary["عدد الردود"] = df.groupby(service_col).size().values
-        summary["التصنيف اللوني"] = np.where(summary["CSAT"] >= 80, "مرتفع",
-                                     np.where(summary["CSAT"] >= 60, "متوسط", "منخفض"))
-
-        st.dataframe(summary, use_container_width=True)
-        fig = px.bar(summary.sort_values("CSAT", ascending=False),
-                     x=service_col, y="CSAT", color="التصنيف اللوني",
-                     text="عدد الردود", color_discrete_sequence=PASTEL,
-                     title="رضا المتعاملين حسب الخدمة")
+        fig = px.bar(dims.sort_values("Score", ascending=False),
+                     x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+                     y="Score", text="Score",
+                     color_discrete_sequence=PASTEL,
+                     title="تحليل متوسط الأبعاد")
+        fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+        fig.update_layout(yaxis_title="النسبة المئوية (%)")
         st.plotly_chart(fig, use_container_width=True)
+        st.dataframe(dims, use_container_width=True)
 
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
-# =========================================================
-# 💬 PARETO TAB — Enhanced (v10.8)
-# =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل الملاحظات (Pareto)")
-
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
         col = text_cols[0]
-
-        # تنظيف النصوص
         df["__clean"] = df[col].astype(str).str.lower()
         df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
         df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
-
         empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
         df = df[~df["__clean"].isin(empty_terms)]
         df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
 
-        # التصنيفات (Themes)
         themes = {
             "Parking / مواقف السيارات": ["موقف", "مواقف", "parking"],
             "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
@@ -298,65 +297,32 @@ with tab_pareto:
         df["Theme"] = df["__clean"].apply(classify_theme)
         df = df[df["Theme"] != "Other / أخرى"]
 
-        # إحصاء عدد التكرارات والنسب
         counts = df["Theme"].value_counts().reset_index()
         counts.columns = ["Theme", "Count"]
         counts["%"] = counts["Count"] / counts["Count"].sum() * 100
         counts["Cum%"] = counts["%"].cumsum()
-
-        # اللون: أحمر لما تحت 80%
         counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
 
-        # جميع الإجابات لكل محور
-        all_answers = (
-            df.groupby("Theme")["__clean"]
-              .apply(lambda x: " / ".join(x.astype(str)))
-              .reset_index()
-        )
+        all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
         counts = counts.merge(all_answers, on="Theme", how="left")
         counts.rename(columns={"__clean": "جميع الإجابات"}, inplace=True)
 
-        # عرض الجدول
-        st.markdown("### 📋 قائمة المحاور والتكرارات")
-        st.dataframe(
-            counts[["Theme", "Count", "%", "Cum%", "جميع الإجابات"]]
-            .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
-            use_container_width=True
-        )
+        st.dataframe(counts[["Theme", "Count", "%", "Cum%", "جميع الإجابات"]]
+                     .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}), use_container_width=True)
 
-        # رسم Pareto Chart
         fig = go.Figure()
-        fig.add_bar(
-            x=counts["Theme"],
-            y=counts["Count"],
-            marker_color=counts["Color"],
-            name="عدد الملاحظات"
-        )
-        fig.add_scatter(
-            x=counts["Theme"],
-            y=counts["Cum%"],
-            name="النسبة التراكمية",
-            yaxis="y2",
-            mode="lines+markers",
-            line=dict(color="#2c3e50", width=2)
-        )
-        fig.update_layout(
-            title="🔍 Pareto — المحاور الرئيسية حسب الملاحظات",
-            yaxis=dict(title="عدد الملاحظات"),
-            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
-            bargap=0.25,
-            height=600
-        )
+        fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="عدد الملاحظات")
+        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="النسبة التراكمية", yaxis="y2", mode="lines+markers")
+        fig.update_layout(title="Pareto — المحاور الرئيسية",
+                          yaxis=dict(title="عدد الملاحظات"),
+                          yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
+                          bargap=0.25, height=600)
         st.plotly_chart(fig, use_container_width=True)
 
-        # 🔽 تنزيل جدول Pareto كـ Excel
         pareto_buffer = io.BytesIO()
         with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
             counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
-
-        st.download_button(
-            "📥 تنزيل جدول Pareto (Excel)",
-            data=pareto_buffer.getvalue(),
-            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-        )
+        st.download_button("📥 تنزيل جدول Pareto (Excel)",
+                           data=pareto_buffer.getvalue(),
+                           file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
