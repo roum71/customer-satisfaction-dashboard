@@ -136,15 +136,40 @@ def detect_nps(df):
 # =========================================================
 # FILTERS
 # =========================================================
+
+
+
+
 filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
+
 with st.sidebar.expander("🎛️ الفلاتر / Filters"):
     for col in filter_cols:
+        # Check if lookup exists for this column
+        lookup_name = col.strip().upper()
+        if lookup_name in lookup_catalog:
+            lookup_tbl = lookup_catalog[lookup_name]
+            lookup_tbl.columns = [c.strip().upper() for c in lookup_tbl.columns]
+
+            # Detect Arabic/English columns
+            ar_col = next((c for c in lookup_tbl.columns if "ARABIC" in c), None)
+            en_col = next((c for c in lookup_tbl.columns if "ENGLISH" in c), None)
+            code_col = next((c for c in lookup_tbl.columns if "CODE" in c), None)
+
+            if code_col and ((lang == "العربية" and ar_col) or (lang == "English" and en_col)):
+                name_col = ar_col if lang == "العربية" else en_col
+                name_map = dict(zip(lookup_tbl[code_col].astype(str), lookup_tbl[name_col].astype(str)))
+                df[col] = df[col].astype(str).map(name_map).fillna(df[col])
+        
+        # Now filter using the mapped (readable) names
         options = df[col].dropna().unique().tolist()
         selection = st.multiselect(col, options, default=options)
         filters[col] = selection
+
+# Apply filters
 for col, values in filters.items():
     df = df[df[col].isin(values)]
+
 
 # =========================================================
 # TABS
@@ -350,3 +375,4 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
