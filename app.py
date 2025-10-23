@@ -440,110 +440,112 @@ with tab_dimensions:
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
 
-    # التحقق من وجود العمود SERVICE
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
     else:
         df_services = df.copy()
 
-        # 🧮 تحويل قيم CSAT و CES من 1–5 إلى نسب مئوية (0–100)
-        for metric in ["CSAT", "CES"]:
-            if metric in df_services.columns:
-                df_services[metric] = (df_services[metric] - 1) * 25  # مثال: 4.2 → (4.2-1)*25 = 80%
+        # 🧭 تحديد أسماء الأعمدة بشكل مرن
+        csat_col = next((c for c in df_services.columns if "CSAT" in c.upper()), None)
+        ces_col = next((c for c in df_services.columns if "CES" in c.upper()), None)
 
-        # 📊 حساب المتوسط وعدد الردود لكل خدمة
-        summary = []
-        for svc in df_services["SERVICE"].dropna().unique():
-            sub = df_services[df_services["SERVICE"] == svc]
-            row = {"SERVICE": svc, "عدد الردود": len(sub)}
-            if "CSAT" in sub.columns:
-                row["CSAT (٪)"] = sub["CSAT"].mean()
-            if "CES" in sub.columns:
-                row["CES (٪)"] = sub["CES"].mean()
-            summary.append(row)
+        if not csat_col and not ces_col:
+            st.warning("⚠️ لم يتم العثور على أعمدة CSAT أو CES في البيانات.")
+        else:
+            # 🧮 تحويل من 1–5 إلى 0–100
+            for metric in [csat_col, ces_col]:
+                if metric and metric in df_services.columns:
+                    df_services[metric] = (df_services[metric] - 1) * 25
 
-        df_summary = pd.DataFrame(summary)
+            # 🧾 حساب المتوسط وعدد الردود لكل خدمة
+            summary = []
+            for svc in df_services["SERVICE"].dropna().unique():
+                sub = df_services[df_services["SERVICE"] == svc]
+                row = {"SERVICE": svc, "عدد الردود": len(sub)}
+                if csat_col:
+                    row["CSAT (٪)"] = sub[csat_col].mean()
+                if ces_col:
+                    row["CES (٪)"] = sub[ces_col].mean()
+                summary.append(row)
 
-        # 🌐 استبدال أسماء الخدمات بالعربية أو الإنجليزية من جدول lookup
-        if "SERVICE" in lookup_catalog:
-            tbl = lookup_catalog["SERVICE"]
-            tbl.columns = [c.strip().upper() for c in tbl.columns]
-            ar_col = next((c for c in tbl.columns if "ARABIC" in c or "SERVICE2" in c), None)
-            en_col = next((c for c in tbl.columns if "ENGLISH" in c), None)
-            code_col = next((c for c in tbl.columns if "CODE" in c or "SERVICE" in c), None)
+            df_summary = pd.DataFrame(summary)
 
-            if ar_col and en_col and code_col:
-                name_map = dict(zip(tbl[code_col], tbl[ar_col if lang == "العربية" else en_col]))
-                df_summary["SERVICE"] = df_summary["SERVICE"].map(name_map).fillna(df_summary["SERVICE"])
+            # 🌐 أسماء الخدمات بالعربية / الإنجليزية من lookup
+            if "SERVICE" in lookup_catalog:
+                tbl = lookup_catalog["SERVICE"]
+                tbl.columns = [c.strip().upper() for c in tbl.columns]
+                ar_col = next((c for c in tbl.columns if "ARABIC" in c or "SERVICE2" in c), None)
+                en_col = next((c for c in tbl.columns if "ENGLISH" in c), None)
+                code_col = next((c for c in tbl.columns if "CODE" in c or "SERVICE" in c), None)
+                if ar_col and en_col and code_col:
+                    name_map = dict(zip(tbl[code_col], tbl[ar_col if lang == "العربية" else en_col]))
+                    df_summary["SERVICE"] = df_summary["SERVICE"].map(name_map).fillna(df_summary["SERVICE"])
 
-        # 🧹 تنسيق الأعمدة النهائية
-        df_summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
+            # 🧹 تنسيق الأعمدة
+            df_summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
 
-        # 🧾 عرض الجدول
-        st.dataframe(
-            df_summary.style.format({
-                "CSAT (٪)": "{:.1f}%",
-                "CES (٪)": "{:.1f}%",
-                "عدد الردود": "{:,.0f}"
-            }),
-            use_container_width=True
-        )
+            # 🟦 عرض الجدول الكامل
+            st.dataframe(
+                df_summary.style.format({
+                    "CSAT (٪)": "{:.1f}%",
+                    "CES (٪)": "{:.1f}%",
+                    "عدد الردود": "{:,.0f}"
+                }),
+                use_container_width=True
+            )
 
-        # 🎨 الرسم البياني المقارن بين CSAT و CES
-        if not df_summary.empty:
-            # البحث عن العمود الصحيح للخدمة (عربي أو إنجليزي)
-            service_col = None
-            for c in df_summary.columns:
-                if "SERVICE" in c.upper() or "خدمة" in c:
-                    service_col = c
-                    break
-
-            if service_col:
-                df_melted = df_summary.melt(
-                    id_vars=[service_col],
-                    value_vars=[c for c in df_summary.columns if "CSAT" in c or "CES" in c],
-                    var_name="المؤشر",
-                    value_name="القيمة"
+            # 🎯 رسم بياني منفصل لكل مؤشر
+            if csat_col and "CSAT (٪)" in df_summary.columns:
+                st.markdown("### 💙 مؤشر رضا العملاء (CSAT)")
+                fig1 = px.bar(
+                    df_summary,
+                    x="الخدمة / Service",
+                    y="CSAT (٪)",
+                    text="CSAT (٪)",
+                    color_discrete_sequence=PASTEL,
+                    title="CSAT حسب الخدمة"
                 )
-
-                fig = px.bar(
-                    df_melted,
-                    x=service_col,
-                    y="القيمة",
-                    color="المؤشر",
-                    barmode="group",
-                    text="القيمة",
-                    title="مقارنة مؤشرات الرضا حسب الخدمة",
-                    color_discrete_sequence=PASTEL
-                )
-
-                # 📊 تنسيق الأرقام والنصوص
-                fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-                fig.update_layout(
+                fig1.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                fig1.update_layout(
                     yaxis_title="النسبة المئوية (%)",
                     xaxis_title="الخدمة / Service",
-                    legend_title="المؤشر",
                     yaxis=dict(range=[0, 100])
                 )
-
-                # 🎯 إضافة خط مرجعي عند 80%
-                fig.add_shape(
-                    type="line",
-                    x0=-0.5, x1=len(df_summary)-0.5,
-                    y0=80, y1=80,
-                    line=dict(color="green", dash="dash", width=2)
+                fig1.add_shape(
+                    type="line", x0=-0.5, x1=len(df_summary)-0.5,
+                    y0=80, y1=80, line=dict(color="green", dash="dash", width=2)
                 )
-                fig.add_annotation(
+                fig1.add_annotation(
                     xref="paper", x=1.02, y=80,
-                    text="🎯 الحد المستهدف (80%)",
-                    showarrow=False,
-                    font=dict(color="green")
+                    text="🎯 الحد المستهدف (80%)", showarrow=False, font=dict(color="green")
                 )
+                st.plotly_chart(fig1, use_container_width=True)
 
-                # 🧩 عرض الرسم
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.error("❌ لم يتم العثور على عمود للخدمة في الجدول.")
+            if ces_col and "CES (٪)" in df_summary.columns:
+                st.markdown("### 💛 مؤشر سهولة الخدمة (CES)")
+                fig2 = px.bar(
+                    df_summary,
+                    x="الخدمة / Service",
+                    y="CES (٪)",
+                    text="CES (٪)",
+                    color_discrete_sequence=PASTEL,
+                    title="CES حسب الخدمة"
+                )
+                fig2.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                fig2.update_layout(
+                    yaxis_title="النسبة المئوية (%)",
+                    xaxis_title="الخدمة / Service",
+                    yaxis=dict(range=[0, 100])
+                )
+                fig2.add_shape(
+                    type="line", x0=-0.5, x1=len(df_summary)-0.5,
+                    y0=80, y1=80, line=dict(color="green", dash="dash", width=2)
+                )
+                fig2.add_annotation(
+                    xref="paper", x=1.02, y=80,
+                    text="🎯 الحد المستهدف (80%)", showarrow=False, font=dict(color="green")
+                )
+                st.plotly_chart(fig2, use_container_width=True)
 
 
 
@@ -613,6 +615,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
