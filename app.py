@@ -132,11 +132,9 @@ def detect_nps(df):
     detractors_pct = detractors/total*100
     nps = promoters_pct - detractors_pct
     return nps, promoters_pct, passives_pct, detractors_pct
-
 # =========================================================
 # FILTERS
 # =========================================================
-
 filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
 
@@ -175,11 +173,15 @@ df = df_filtered.copy()
 
 
 # =========================================================
+# 📈 TABS
+# =========================================================
+tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
+    ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
+)
+
+# =========================================================
 # 📈 SAMPLE TAB
 # =========================================================
-
-ab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
-    ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
@@ -188,13 +190,14 @@ with tab_sample:
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
-        counts["%"] = counts["Count"]/total*100
+        counts["%"] = counts["Count"] / total * 100
         title = f"{col} — {total:,} رد"
         if chart_type == "دائري Pie":
             fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
         else:
             fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
+
 
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
@@ -342,6 +345,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
