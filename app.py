@@ -256,45 +256,107 @@ with tab_services:
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
+# =========================================================
+# 💬 PARETO TAB — Enhanced (v10.8)
+# =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل الملاحظات (Pareto)")
-    text_cols=[c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","unsat","reason"])]
+
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
-        col=text_cols[0]
-        df["__clean"]=df[col].astype(str).str.lower()
-        df["__clean"]=df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]"," ",regex=True)
-        df["__clean"]=df["__clean"].replace(r"\s+"," ",regex=True).str.strip()
-        empty_terms={""," ","لا يوجد","لايوجد","لا شيء","no","none","nothing","جيد","ممتاز","ok"}
-        df=df[~df["__clean"].isin(empty_terms)]
-        df=df[df["__clean"].apply(lambda x: len(x.split())>=3)]
+        col = text_cols[0]
 
-        themes={
-            "Parking / مواقف السيارات":["موقف","مواقف","parking"],
-            "Waiting / الانتظار":["انتظار","بطء","delay","slow"],
-            "Staff / الموظفون":["موظف","تعامل","staff"],
-            "Fees / الرسوم":["رسوم","دفع","fee"],
-            "Process / الإجراءات":["اجراء","process","انجاز"],
-            "Platform / المنصة":["تطبيق","app","system"],
-            "Facility / المكان":["مكان","نظافة","ازدحام"],
-            "Communication / التواصل":["رد","تواصل","اتصال"]
+        # تنظيف النصوص
+        df["__clean"] = df[col].astype(str).str.lower()
+        df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
+        df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
+
+        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
+        df = df[~df["__clean"].isin(empty_terms)]
+        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+
+        # التصنيفات (Themes)
+        themes = {
+            "Parking / مواقف السيارات": ["موقف", "مواقف", "parking"],
+            "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
+            "Staff / الموظفون": ["موظف", "تعامل", "staff"],
+            "Fees / الرسوم": ["رسوم", "دفع", "fee"],
+            "Process / الإجراءات": ["اجراء", "process", "انجاز"],
+            "Platform / المنصة": ["تطبيق", "app", "system"],
+            "Facility / المكان": ["مكان", "نظافة", "ازدحام"],
+            "Communication / التواصل": ["رد", "تواصل", "اتصال"]
         }
 
         def classify_theme(t):
-            for th,ws in themes.items():
-                if any(w in t for w in ws): return th
+            for th, ws in themes.items():
+                if any(w in t for w in ws):
+                    return th
             return "Other / أخرى"
 
-        df["Theme"]=df["__clean"].apply(classify_theme)
-        counts=df["Theme"].value_counts().reset_index()
-        counts.columns=["Theme","Count"]
-        counts["%"]=counts["Count"]/counts["Count"].sum()*100
-        counts["Cum%"]=counts["%"].cumsum()
+        df["Theme"] = df["__clean"].apply(classify_theme)
+        df = df[df["Theme"] != "Other / أخرى"]
 
-        fig=go.Figure()
-        fig.add_bar(x=counts["Theme"],y=counts["Count"],name="عدد الملاحظات",marker_color="#5dade2")
-        fig.add_scatter(x=counts["Theme"],y=counts["Cum%"],name="النسبة التراكمية",yaxis="y2",mode="lines+markers")
-        fig.update_layout(yaxis2=dict(overlaying="y",side="right",title="النسبة التراكمية (%)"),
-                          title="Pareto — أهم المحاور",bargap=0.2)
-        st.plotly_chart(fig,use_container_width=True)
+        # إحصاء عدد التكرارات والنسب
+        counts = df["Theme"].value_counts().reset_index()
+        counts.columns = ["Theme", "Count"]
+        counts["%"] = counts["Count"] / counts["Count"].sum() * 100
+        counts["Cum%"] = counts["%"].cumsum()
+
+        # اللون: أحمر لما تحت 80%
+        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
+
+        # جميع الإجابات لكل محور
+        all_answers = (
+            df.groupby("Theme")["__clean"]
+              .apply(lambda x: " / ".join(x.astype(str)))
+              .reset_index()
+        )
+        counts = counts.merge(all_answers, on="Theme", how="left")
+        counts.rename(columns={"__clean": "جميع الإجابات"}, inplace=True)
+
+        # عرض الجدول
+        st.markdown("### 📋 قائمة المحاور والتكرارات")
+        st.dataframe(
+            counts[["Theme", "Count", "%", "Cum%", "جميع الإجابات"]]
+            .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+            use_container_width=True
+        )
+
+        # رسم Pareto Chart
+        fig = go.Figure()
+        fig.add_bar(
+            x=counts["Theme"],
+            y=counts["Count"],
+            marker_color=counts["Color"],
+            name="عدد الملاحظات"
+        )
+        fig.add_scatter(
+            x=counts["Theme"],
+            y=counts["Cum%"],
+            name="النسبة التراكمية",
+            yaxis="y2",
+            mode="lines+markers",
+            line=dict(color="#2c3e50", width=2)
+        )
+        fig.update_layout(
+            title="🔍 Pareto — المحاور الرئيسية حسب الملاحظات",
+            yaxis=dict(title="عدد الملاحظات"),
+            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
+            bargap=0.25,
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # 🔽 تنزيل جدول Pareto كـ Excel
+        pareto_buffer = io.BytesIO()
+        with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
+            counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
+
+        st.download_button(
+            "📥 تنزيل جدول Pareto (Excel)",
+            data=pareto_buffer.getvalue(),
+            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
