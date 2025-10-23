@@ -17,13 +17,36 @@ from pathlib import Path
 # =========================================================
 # 🔐 USERS
 # =========================================================
+import streamlit as st
+
 USER_KEYS = {
-    "Public Services Department": {"password": "psd2025", "role": "center", "file": "Center_Public_Services.csv"},
-    "Ras Al Khaimah Municipality": {"password": "rakm2025", "role": "center", "file": "Center_RAK_Municipality.csv"},
-    "Sheikh Saud Center-Ras Al Khaimah Courts": {"password": "ssc2025", "role": "center", "file": "Center_Sheikh_Saud_Courts.csv"},
-    "Sheikh Saqr Center-Ras Al Khaimah Courts": {"password": "ssq2025", "role": "center", "file": "Center_Sheikh_Saqr_Courts.csv"},
-    "Executive Council": {"password": "admin2025", "role": "admin", "file": "Centers_Master.csv"}
+    "Public Services Department": {
+        "password": st.secrets["users"]["Public_Services_Department"],
+        "role": "center",
+        "file": "Center_Public_Services.csv"
+    },
+    "Ras Al Khaimah Municipality": {
+        "password": st.secrets["users"]["Ras_Al_Khaimah_Municipality"],
+        "role": "center",
+        "file": "Center_RAK_Municipality.csv"
+    },
+    "Sheikh Saud Center-Ras Al Khaimah Courts": {
+        "password": st.secrets["users"]["Sheikh_Saud_Center"],
+        "role": "center",
+        "file": "Center_Sheikh_Saud_Courts.csv"
+    },
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": {
+        "password": st.secrets["users"]["Sheikh_Saqr_Center"],
+        "role": "center",
+        "file": "Center_Sheikh_Saqr_Courts.csv"
+    },
+    "Executive Council": {
+        "password": st.secrets["users"]["Executive_Council"],
+        "role": "admin",
+        "file": "Centers_Master.csv"
+    }
 }
+
 
 # =========================================================
 # PAGE CONFIG
@@ -406,6 +429,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
