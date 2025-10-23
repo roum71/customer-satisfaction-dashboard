@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.9 (Executive Edition)
+Customer Satisfaction Dashboard — v10.7 (Executive Edition)
 Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
@@ -123,22 +123,18 @@ def detect_nps(df):
     if not cands: return np.nan
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
     if len(s)==0: return np.nan
-    promoters = (s>=9).sum(); passives = ((s>=7)&(s<=8)).sum(); detractors = (s<=6).sum()
-    promoters_pct = promoters/len(s)*100
-    passives_pct = passives/len(s)*100
-    detractors_pct = detractors/len(s)*100
-    nps = promoters_pct - detractors_pct
-    return nps, promoters_pct, passives_pct, detractors_pct
+    promoters = (s>=9).sum(); detractors = (s<=6).sum()
+    return (promoters - detractors)/len(s)*100
 
 # =========================================================
 # FILTERS
 # =========================================================
-filter_cols = [c for c in df.columns if c.endswith("_name")]
+filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
 with st.sidebar.expander("🎛️ الفلاتر / Filters"):
     for col in filter_cols:
         options = df[col].dropna().unique().tolist()
-        selection = st.multiselect(col.replace("_name",""), options, default=options)
+        selection = st.multiselect(col, options, default=options)
         filters[col] = selection
 for col, values in filters.items():
     df = df[df[col].isin(values)]
@@ -151,11 +147,36 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs(
 )
 
 # =========================================================
-# 📁 DATA TAB
+# 📁 DATA TAB — Multi-language headers
 # =========================================================
 with tab_data:
     st.subheader("📁 البيانات بعد الفلاتر")
-    st.dataframe(df, use_container_width=True)
+
+    questions_map_ar, questions_map_en = {}, {}
+    if "QUESTIONS" in lookup_catalog:
+        qtbl = lookup_catalog["QUESTIONS"]
+        qtbl.columns = [c.strip().upper() for c in qtbl.columns]
+        code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
+        ar_col = next((c for c in qtbl.columns if "ARABIC" in c or c == "ARABIC"), None)
+        en_col = next((c for c in qtbl.columns if "ENGLISH" in c or c == "ENGLISH"), None)
+
+        if code_col and ar_col and en_col:
+            qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip().str.upper()
+            questions_map_ar = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col]))
+            questions_map_en = dict(zip(qtbl["CODE_NORM"], qtbl[en_col]))
+
+    df_display = df.copy()
+    df_display.columns = [c.strip() for c in df_display.columns]
+    ar_row = [questions_map_ar.get(c.strip().upper(), "") for c in df_display.columns]
+    en_row = [questions_map_en.get(c.strip().upper(), "") for c in df_display.columns]
+    df_final = pd.concat([pd.DataFrame([ar_row, en_row], columns=df_display.columns), df_display], ignore_index=True)
+
+    st.dataframe(df_final, use_container_width=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_final.to_excel(writer, index=False)
+    st.download_button("📥 تنزيل البيانات", buffer.getvalue(), file_name=f"Filtered_Data_{ts}.xlsx")
 
 # =========================================================
 # 📈 SAMPLE TAB
@@ -164,26 +185,17 @@ with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-
-    chart_option = st.radio("📊 نوع العرض", ["Grid", "Vertical Bar", "Horizontal Bar"], index=1, horizontal=True)
-
+    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
-        counts.columns = [col, "عدد الردود"]
-        title = f"{col.replace('_name','')} — {total:,} رد"
-
-        if chart_option == "Grid":
-            st.dataframe(counts, use_container_width=True)
-        elif chart_option == "Vertical Bar":
-            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود",
-                         title=title, color=col, color_discrete_sequence=PASTEL)
-            fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
+        counts.columns = [col, "Count"]
+        counts["%"] = counts["Count"]/total*100
+        title = f"{col} — {total:,} رد"
+        if chart_type == "دائري Pie":
+            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
         else:
-            fig = px.bar(counts, x="عدد الردود", y=col, orientation="h",
-                         text="عدد الردود", color=col, color_discrete_sequence=PASTEL, title=title)
-            fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
+            fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # 📊 KPIs TAB
@@ -192,11 +204,8 @@ with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-    nps_val, prom, passv, detr = detect_nps(df)
-
-    c1, c2, c3 = st.columns(3)
-    metrics = [("CSAT", csat), ("CES", ces), ("NPS", nps_val)]
-    for col, (name, val) in zip([c1, c2, c3], metrics):
+    nps = detect_nps(df)
+    for val, name in zip([csat, ces, nps], ["CSAT", "CES", "NPS"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=val if not np.isnan(val) else 0,
@@ -206,98 +215,148 @@ with tab_kpis:
                              {'range': [60, 80], 'color': '#fcf3cf'},
                              {'range': [80, 100], 'color': '#c8f7c5'}],
                    'bar': {'color': '#2ecc71'}}))
-        col.plotly_chart(fig, use_container_width=True)
-
-    st.markdown(f"""
-    #### 🔎 تفاصيل مؤشر NPS
-    - **Promoters (المروجون):** {prom:.1f}%  
-    - **Passives (المحايدون):** {passv:.1f}%  
-    - **Detractors (المعارضون):** {detr:.1f}%
-    """)
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # 📋 SERVICES TAB
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
-    if "SERVICE_name" in df.columns:
-        summary = df.groupby("SERVICE_name").agg({
+
+    service_col = next((c for c in df.columns if "SERVICE" in c.upper()), None)
+    if not service_col:
+        st.warning("⚠️ لا يوجد عمود خدمة في البيانات.")
+    else:
+        if "SERVICE" in lookup_catalog:
+            st.info("📘 تم استخدام ملف الترجمة لعرض أسماء الخدمات.")
+            st_df = lookup_catalog["SERVICE"]
+            st_df.columns = [c.strip().upper() for c in st_df.columns]
+            code_col = next((c for c in st_df.columns if "CODE" in c or "SERVICE" in c), None)
+            ar_col = next((c for c in st_df.columns if "ARABIC" in c), None)
+            en_col = next((c for c in st_df.columns if "ENGLISH" in c), None)
+            if code_col and ar_col and en_col:
+                name_map = dict(zip(st_df[code_col].astype(str).str.strip(), st_df[ar_col if lang=="العربية" else en_col]))
+                df[service_col] = df[service_col].astype(str).replace(name_map)
+
+        summary = df.groupby(service_col).agg({
             "Dim6.1": series_to_percent,
             "Dim6.2": series_to_percent
         }).reset_index().rename(columns={"Dim6.1": "CSAT", "Dim6.2": "CES"})
-        summary["عدد الردود"] = df.groupby("SERVICE_name").size().values
+        summary["عدد الردود"] = df.groupby(service_col).size().values
+        summary["التصنيف اللوني"] = np.where(summary["CSAT"] >= 80, "مرتفع",
+                                     np.where(summary["CSAT"] >= 60, "متوسط", "منخفض"))
+
         st.dataframe(summary, use_container_width=True)
         fig = px.bar(summary.sort_values("CSAT", ascending=False),
-                     x="SERVICE_name", y="CSAT", text="عدد الردود",
-                     color="SERVICE_name", color_discrete_sequence=PASTEL,
+                     x=service_col, y="CSAT", color="التصنيف اللوني",
+                     text="عدد الردود", color_discrete_sequence=PASTEL,
                      title="رضا المتعاملين حسب الخدمة")
-        fig.update_traces(textposition="outside")
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.warning("⚠️ لا توجد بيانات خدمات في هذا المركز.")
 
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
+# =========================================================
+# 💬 PARETO TAB — Enhanced (v10.8)
+# =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل الملاحظات (Pareto)")
-    text_cols=[c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","unsat","reason"])]
+
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
-        col=text_cols[0]
-        df["__clean"]=df[col].astype(str).str.lower()
-        df["__clean"]=df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]"," ",regex=True)
-        df["__clean"]=df["__clean"].replace(r"\s+"," ",regex=True).str.strip()
-        empty_terms={""," ","لا يوجد","لايوجد","لا شيء","no","none","nothing","جيد","ممتاز","ok"}
-        df=df[~df["__clean"].isin(empty_terms)]
-        df=df[df["__clean"].apply(lambda x: len(x.split())>=3)]
+        col = text_cols[0]
 
-        themes={
-            "Parking / مواقف السيارات":["موقف","مواقف","parking"],
-            "Waiting / الانتظار":["انتظار","بطء","delay","slow"],
-            "Staff / الموظفون":["موظف","تعامل","staff"],
-            "Fees / الرسوم":["رسوم","دفع","fee"],
-            "Process / الإجراءات":["اجراء","process","انجاز"],
-            "Platform / المنصة":["تطبيق","app","system"],
-            "Facility / المكان":["مكان","نظافة","ازدحام"],
-            "Communication / التواصل":["رد","تواصل","اتصال"]
+        # تنظيف النصوص
+        df["__clean"] = df[col].astype(str).str.lower()
+        df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
+        df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
+
+        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
+        df = df[~df["__clean"].isin(empty_terms)]
+        df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
+
+        # التصنيفات (Themes)
+        themes = {
+            "Parking / مواقف السيارات": ["موقف", "مواقف", "parking"],
+            "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
+            "Staff / الموظفون": ["موظف", "تعامل", "staff"],
+            "Fees / الرسوم": ["رسوم", "دفع", "fee"],
+            "Process / الإجراءات": ["اجراء", "process", "انجاز"],
+            "Platform / المنصة": ["تطبيق", "app", "system"],
+            "Facility / المكان": ["مكان", "نظافة", "ازدحام"],
+            "Communication / التواصل": ["رد", "تواصل", "اتصال"]
         }
 
         def classify_theme(t):
-            for th,ws in themes.items():
-                if any(w in t for w in ws): return th
+            for th, ws in themes.items():
+                if any(w in t for w in ws):
+                    return th
             return "Other / أخرى"
 
-        df["Theme"]=df["__clean"].apply(classify_theme)
-        df=df[df["Theme"]!="Other / أخرى"]
+        df["Theme"] = df["__clean"].apply(classify_theme)
+        df = df[df["Theme"] != "Other / أخرى"]
 
-        counts=df["Theme"].value_counts().reset_index()
-        counts.columns=["Theme","Count"]
-        counts["%"]=counts["Count"]/counts["Count"].sum()*100
-        counts["Cum%"]=counts["%"].cumsum()
-        counts["Color"]=np.where(counts["Cum%"]<=80,"#e74c3c","#95a5a6")
+        # إحصاء عدد التكرارات والنسب
+        counts = df["Theme"].value_counts().reset_index()
+        counts.columns = ["Theme", "Count"]
+        counts["%"] = counts["Count"] / counts["Count"].sum() * 100
+        counts["Cum%"] = counts["%"].cumsum()
 
-        all_answers=df.groupby("Theme")["__clean"].apply(lambda x:" / ".join(x.astype(str))).reset_index()
-        counts=counts.merge(all_answers,on="Theme",how="left")
-        counts.rename(columns={"__clean":"جميع الإجابات"},inplace=True)
+        # اللون: أحمر لما تحت 80%
+        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
 
-        st.dataframe(counts[["Theme","Count","%","Cum%","جميع الإجابات"]]
-                     .style.format({"%":"{:.1f}","Cum%":"{:.1f}"}),use_container_width=True)
+        # جميع الإجابات لكل محور
+        all_answers = (
+            df.groupby("Theme")["__clean"]
+              .apply(lambda x: " / ".join(x.astype(str)))
+              .reset_index()
+        )
+        counts = counts.merge(all_answers, on="Theme", how="left")
+        counts.rename(columns={"__clean": "جميع الإجابات"}, inplace=True)
 
-        fig=go.Figure()
-        fig.add_bar(x=counts["Theme"],y=counts["Count"],marker_color=counts["Color"],name="عدد الملاحظات")
-        fig.add_scatter(x=counts["Theme"],y=counts["Cum%"],name="النسبة التراكمية",yaxis="y2",mode="lines+markers")
-        fig.update_layout(title="Pareto — المحاور الرئيسية",
-                          yaxis=dict(title="عدد الملاحظات"),
-                          yaxis2=dict(title="النسبة التراكمية (%)",overlaying="y",side="right"),
-                          bargap=0.25,height=600)
-        st.plotly_chart(fig,use_container_width=True)
+        # عرض الجدول
+        st.markdown("### 📋 قائمة المحاور والتكرارات")
+        st.dataframe(
+            counts[["Theme", "Count", "%", "Cum%", "جميع الإجابات"]]
+            .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+            use_container_width=True
+        )
 
-        pareto_buffer=io.BytesIO()
-        with pd.ExcelWriter(pareto_buffer,engine="openpyxl") as writer:
-            counts.to_excel(writer,index=False,sheet_name="Pareto_Results")
-        st.download_button("📥 تنزيل جدول Pareto (Excel)",
-                           data=pareto_buffer.getvalue(),
-                           file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        # رسم Pareto Chart
+        fig = go.Figure()
+        fig.add_bar(
+            x=counts["Theme"],
+            y=counts["Count"],
+            marker_color=counts["Color"],
+            name="عدد الملاحظات"
+        )
+        fig.add_scatter(
+            x=counts["Theme"],
+            y=counts["Cum%"],
+            name="النسبة التراكمية",
+            yaxis="y2",
+            mode="lines+markers",
+            line=dict(color="#2c3e50", width=2)
+        )
+        fig.update_layout(
+            title="🔍 Pareto — المحاور الرئيسية حسب الملاحظات",
+            yaxis=dict(title="عدد الملاحظات"),
+            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
+            bargap=0.25,
+            height=600
+        )
+        st.plotly_chart(fig, use_container_width=True)
+
+        # 🔽 تنزيل جدول Pareto كـ Excel
+        pareto_buffer = io.BytesIO()
+        with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
+            counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
+
+        st.download_button(
+            "📥 تنزيل جدول Pareto (Excel)",
+            data=pareto_buffer.getvalue(),
+            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
