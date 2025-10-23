@@ -168,18 +168,43 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
 ])
 
 # =========================================================
-# 📁 DATA TAB
+# 📁 DATA TAB (With Arabic/English Questions Headers)
 # =========================================================
 with tab_data:
     st.subheader("📁 البيانات بعد الفلاتر")
-    st.dataframe(df, use_container_width=True)
+
+    questions_map_ar, questions_map_en = {}, {}
+
+    if "QUESTIONS" in lookup_catalog:
+        qtbl = lookup_catalog["QUESTIONS"]
+        qtbl.columns = [c.upper() for c in qtbl.columns]
+        if all(x in qtbl.columns for x in ["CODE", "ARABIC", "ENGLISH"]):
+            questions_map_ar = dict(zip(qtbl["CODE"], qtbl["ARABIC"]))
+            questions_map_en = dict(zip(qtbl["CODE"], qtbl["ENGLISH"]))
+
+    df_display = df.copy()
+
+    # استبدال رؤوس الأعمدة إذا كانت موجودة في جدول الأسئلة
+    ar_header = []
+    en_header = []
+    for col in df_display.columns:
+        ar_header.append(questions_map_ar.get(col, col))
+        en_header.append(questions_map_en.get(col, col))
+
+    # إنشاء DataFrame نهائي يضم السطرين الإضافيين
+    header_df = pd.DataFrame([ar_header, en_header], columns=df_display.columns)
+    combined_df = pd.concat([header_df, df_display], ignore_index=True)
+
+    st.dataframe(combined_df, use_container_width=True, height=600)
+
     ts = datetime.now().strftime("%Y-%m-%d_%H%M")
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Filtered_Data")
+        combined_df.to_excel(writer, index=False, sheet_name="Filtered_Data")
     st.download_button("📥 تنزيل البيانات (Excel)", data=buffer.getvalue(),
                        file_name=f"Filtered_Data_{ts}.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 # =========================================================
 # 📈 SAMPLE TAB
@@ -233,29 +258,47 @@ with tab_kpis:
 # =========================================================
 # 📋 SERVICES TAB
 # =========================================================
+# =========================================================
+# 📋 SERVICES TAB (Show Names, Not Codes)
+# =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
-    service_col = None
+
+    # يفضل استخدام العمود الذي يحتوي الاسم المترجم
     for candidate in ["SERVICE_display", "SERVICE_name", "SERVICE"]:
         if candidate in df.columns:
             service_col = candidate
             break
-    if not service_col:
+    else:
         st.warning("⚠️ لم يتم العثور على عمود للخدمات.")
         st.stop()
-    service_summary = (df.groupby(service_col)
-                       .agg(CSAT=("Dim6.1", series_to_percent),
-                            CES=("Dim6.2", series_to_percent),
-                            عدد_الردود=(service_col, "count"))
-                       .reset_index()
-                       .sort_values("CSAT", ascending=False))
+
+    # عرض الخدمات بالاسم الكامل (الكود + الاسم)
+    df_service = df.copy()
+    if "QUESTIONS" in lookup_catalog:
+        qtbl = lookup_catalog["QUESTIONS"]
+        qtbl.columns = [c.upper() for c in qtbl.columns]
+        qmap = dict(zip(qtbl["CODE"], qtbl["ARABIC"])) if lang == "العربية" else dict(zip(qtbl["CODE"], qtbl["ENGLISH"]))
+        df_service[service_col] = df_service[service_col].replace(qmap)
+
+    service_summary = (
+        df_service.groupby(service_col)
+                  .agg(CSAT=("Dim6.1", series_to_percent),
+                       CES=("Dim6.2", series_to_percent),
+                       عدد_الردود=(service_col, "count"))
+                  .reset_index()
+                  .sort_values("CSAT", ascending=False)
+    )
+
     service_summary["التصنيف اللوني"] = np.select(
         [service_summary["CSAT"] >= 80, service_summary["CSAT"] >= 60],
         ["🟢 مرتفع", "🟡 متوسط"],
         default="🔴 منخفض"
     )
+
     st.dataframe(service_summary[[service_col, "عدد_الردود", "CSAT", "CES", "التصنيف اللوني"]],
                  use_container_width=True)
+
     fig = px.bar(service_summary, x=service_col, y="CSAT", text="عدد_الردود",
                  color="التصنيف اللوني",
                  color_discrete_map={"🟢 مرتفع":"#c8f7c5","🟡 متوسط":"#fcf3cf","🔴 منخفض":"#f5b7b1"},
@@ -263,6 +306,7 @@ with tab_services:
     fig.update_traces(textposition="outside")
     fig.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
     st.plotly_chart(fig, use_container_width=True)
+
 
 # =========================================================
 # 💬 PARETO TAB
@@ -310,3 +354,4 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
