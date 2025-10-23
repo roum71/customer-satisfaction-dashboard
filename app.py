@@ -267,18 +267,39 @@ with tab_kpis:
 # =========================================================
 # 🧩 DIMENSIONS TAB
 # =========================================================
+
+# =========================================================
+# 🧩 DIMENSIONS TAB
+# =========================================================
 with tab_dimensions:
     st.subheader("🧩 تحليل الأبعاد")
-    dim_cols = [c for c in df.columns if re.match(r"Dim\d", c)]
-    if not dim_cols:
-        st.warning("⚠️ لا توجد أعمدة للأبعاد (Dim).")
+
+    # البحث عن كل الأعمدة الفرعية مثل Dim1.1, Dim2.3, ...
+    all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
+
+    if not all_dim_cols:
+        st.warning("⚠️ لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1, Dim2.3 ...).")
     else:
+        # حساب المتوسط لكل بعد رئيسي (Dim1 إلى Dim5)
+        main_dims = {}
+        for i in range(1, 6):  # يشمل Dim1 حتى Dim5
+            sub_cols = [c for c in df.columns if c.startswith(f"Dim{i}.")]
+            if sub_cols:
+                main_dims[f"Dim{i}"] = df[sub_cols].mean(axis=1)
+
+        # إضافة الأعمدة الجديدة إلى DataFrame
+        for k, v in main_dims.items():
+            df[k] = v
+
+        # إعداد ملخص القيم
         summary = []
-        for col in dim_cols:
-            avg = series_to_percent(df[col])
-            summary.append({"Dimension": col, "Score": avg})
+        for dim in [f"Dim{i}" for i in range(1, 6)]:
+            if dim in df.columns:
+                avg = series_to_percent(df[dim])
+                summary.append({"Dimension": dim, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
+        # ربط الأسماء بالعربية أو الإنجليزية من ملف الأسئلة
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -291,13 +312,17 @@ with tab_dimensions:
                                     qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
-        fig = px.bar(dims.sort_values("Score", ascending=False),
-                     x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
-                     y="Score", text="Score",
-                     color_discrete_sequence=PASTEL,
-                     title="تحليل متوسط الأبعاد")
+        # رسم الأعمدة
+        fig = px.bar(
+            dims.sort_values("Score", ascending=False),
+            x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+            y="Score", text="Score",
+            color_discrete_sequence=PASTEL,
+            title="تحليل متوسط الأبعاد"
+        )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig.update_layout(yaxis_title="النسبة المئوية (%)")
+
         st.plotly_chart(fig, use_container_width=True)
         st.dataframe(dims, use_container_width=True)
 
@@ -381,6 +406,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
