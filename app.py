@@ -171,7 +171,7 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
 # 📁 DATA TAB (With Arabic/English Questions Headers)
 # =========================================================
 # =========================================================
-# 📁 DATA TAB — Arabic/English Headers (Fixed)
+# 📁 DATA TAB — Fixed Arabic/English Headers (v10.6)
 # =========================================================
 with tab_data:
     st.subheader("📁 البيانات بعد الفلاتر")
@@ -179,30 +179,31 @@ with tab_data:
     questions_map_ar, questions_map_en = {}, {}
     if "QUESTIONS" in lookup_catalog:
         qtbl = lookup_catalog["QUESTIONS"]
-        qtbl.columns = [c.upper() for c in qtbl.columns]
+        qtbl.columns = [c.strip().upper() for c in qtbl.columns]
         if all(x in qtbl.columns for x in ["CODE", "ARABIC", "ENGLISH"]):
-            questions_map_ar = dict(zip(qtbl["CODE"], qtbl["ARABIC"]))
-            questions_map_en = dict(zip(qtbl["CODE"], qtbl["ENGLISH"]))
+            # بناء خرائط غير حساسة لحالة الأحرف
+            qtbl["CODE_NORM"] = qtbl["CODE"].astype(str).str.strip().str.upper()
+            questions_map_ar = dict(zip(qtbl["CODE_NORM"], qtbl["ARABIC"]))
+            questions_map_en = dict(zip(qtbl["CODE_NORM"], qtbl["ENGLISH"]))
 
     df_display = df.copy()
+    df_display.columns = [c.strip() for c in df_display.columns]
 
-    # إنشاء صفوف الوصف العربي والإنجليزي
-    ar_row = [questions_map_ar.get(c, "") for c in df_display.columns]
-    en_row = [questions_map_en.get(c, "") for c in df_display.columns]
+    # إنشاء صفين عربي وإنجليزي مع تطبيع الأسماء
+    ar_row, en_row = [], []
+    for c in df_display.columns:
+        norm = c.strip().upper()
+        ar_row.append(questions_map_ar.get(norm, ""))
+        en_row.append(questions_map_en.get(norm, ""))
 
-    # بناء DataFrame جديد مع الصفين العلويين
+    # إدراج الصفين في أعلى البيانات
     df_combined = pd.DataFrame([ar_row, en_row], columns=df_display.columns)
     df_final = pd.concat([df_combined, df_display], ignore_index=True)
 
-    # عرض بدون تكرار رأس الجدول
-    st.data_editor(
-        df_final,
-        use_container_width=True,
-        hide_index=True,
-        height=600
-    )
+    # عرض الجدول (بدون تكرار header)
+    st.data_editor(df_final, use_container_width=True, hide_index=True, height=600)
 
-    # حفظ ملف Excel مع نفس التنسيق
+    # تنزيل الملف بنفس التنسيق
     ts = datetime.now().strftime("%Y-%m-%d_%H%M")
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
@@ -213,7 +214,6 @@ with tab_data:
         file_name=f"Filtered_Data_{ts}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
 
 # =========================================================
 # 📈 SAMPLE TAB
@@ -363,5 +363,6 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
 
