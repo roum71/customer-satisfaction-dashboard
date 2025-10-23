@@ -242,15 +242,16 @@ with tab_data:
 # 📈 SAMPLE TAB
 # =========================================================
 # =========================================================
-# 📈 SAMPLE TAB
+# 📈 SAMPLE TAB  — إصدار حديث ومتعدد الخيارات
 # =========================================================
 with tab_sample:
-    st.subheader("📈 توزيع العينة")
+    st.subheader("📈 توزيع العينة (إصدار حديث)")
+    st.warning("🔄 Sample Tab - New Version Loaded")
 
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
 
-    # خيارات نوع الرسم
+    # 🟩 اختيار نوع الرسم البياني
     chart_type = st.radio(
         "📊 نوع الرسم البياني",
         ["Pie Chart", "Bar Chart", "Clustered Bar", "Stacked Bar", "Grid / Matrix"],
@@ -258,7 +259,7 @@ with tab_sample:
         horizontal=True
     )
 
-    # طريقة عرض القيم
+    # 🟨 اختيار طريقة العرض
     value_type = st.radio(
         "📏 طريقة العرض",
         ["Numbers (الأعداد)", "Percentages (النسب المئوية)"],
@@ -266,87 +267,78 @@ with tab_sample:
         horizontal=True
     )
 
-    # اختيار متغير إضافي للتجميع (عند الحاجة)
+    # 🟦 اختيار متغير إضافي في حالة Clustered أو Stacked Bar
     extra_dim = None
     if chart_type in ["Clustered Bar", "Stacked Bar"]:
-        possible_cols = [c for c in df.columns if c != "CENTER" and df[c].nunique() < 15]
+        possible_cols = [c for c in df.columns if c not in ["CENTER"] and df[c].nunique() < 15]
         extra_dim = st.selectbox("📚 اختر متغير إضافي للتجميع", ["None"] + possible_cols)
         if extra_dim == "None":
             extra_dim = None
 
-    # إنشاء الرسوم
+    # 🟪 تنفيذ الرسم حسب الأعمدة المختارة
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
         counts["Percentage"] = counts["Count"] / total * 100
-
         value_col = "Count" if value_type.startswith("Numbers") else "Percentage"
-
         title = f"{col} — {total:,} رد"
 
-        # Pie Chart
+        # 📊 Pie Chart
         if chart_type == "Pie Chart":
             fig = px.pie(
                 counts, names=col, values=value_col,
-                hole=0.3,
-                title=title,
-                color_discrete_sequence=PASTEL
+                hole=0.3, title=title, color_discrete_sequence=PASTEL
             )
 
-        # Simple Bar Chart
+        # 📊 Bar Chart
         elif chart_type == "Bar Chart":
             fig = px.bar(
-                counts,
-                x=col,
-                y=value_col,
-                text=value_col,
-                color=col,
-                color_discrete_sequence=PASTEL,
-                title=title
+                counts, x=col, y=value_col, text=value_col,
+                color=col, color_discrete_sequence=PASTEL, title=title
             )
-            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}", textposition="outside")
+            fig.update_traces(
+                texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}",
+                textposition="outside"
+            )
 
-        # Clustered Bar (مجموعة حسب متغير إضافي)
+        # 📊 Clustered Bar
         elif chart_type == "Clustered Bar" and extra_dim and extra_dim in df.columns:
             grouped = df.groupby([col, extra_dim]).size().reset_index(name="Count")
             grouped["Percentage"] = grouped["Count"] / grouped["Count"].sum() * 100
             fig = px.bar(
-                grouped,
-                x=col,
-                y=value_col,
-                color=extra_dim,
-                barmode="group",
-                text=value_col,
-                title=f"{col} حسب {extra_dim}",
+                grouped, x=col, y=value_col, color=extra_dim,
+                barmode="group", text=value_col, title=f"{col} حسب {extra_dim}",
                 color_discrete_sequence=PASTEL
             )
-            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}", textposition="outside")
+            fig.update_traces(
+                texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}",
+                textposition="outside"
+            )
 
-        # Stacked Bar
+        # 📊 Stacked Bar
         elif chart_type == "Stacked Bar" and extra_dim and extra_dim in df.columns:
             grouped = df.groupby([col, extra_dim]).size().reset_index(name="Count")
             grouped["Percentage"] = grouped["Count"] / grouped["Count"].sum() * 100
             fig = px.bar(
-                grouped,
-                x=col,
-                y=value_col,
-                color=extra_dim,
-                barmode="stack",
-                text=value_col,
+                grouped, x=col, y=value_col, color=extra_dim,
+                barmode="stack", text=value_col,
                 title=f"{col} (Stacked by {extra_dim})",
                 color_discrete_sequence=PASTEL
             )
-            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}")
+            fig.update_traces(
+                texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}",
+                textposition="inside"
+            )
 
-        # Grid / Matrix View
+        # 🧩 Grid / Matrix View
         elif chart_type == "Grid / Matrix":
             st.write(f"### 🧩 عرض شبكي — {col}")
             matrix = counts[[col, "Count", "Percentage"]].copy()
             matrix.columns = ["القيمة", "العدد", "النسبة المئوية"]
             st.dataframe(matrix.style.format({"النسبة المئوية": "{:.1f}%"}), use_container_width=True)
-            continue  # لا نرسم شكل
+            continue  # لا رسم بياني هنا
 
-        # عرض الشكل
+        # 📈 عرض الشكل النهائي
         if chart_type != "Grid / Matrix":
             st.plotly_chart(fig, use_container_width=True)
 
@@ -522,6 +514,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
