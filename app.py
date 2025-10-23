@@ -241,21 +241,114 @@ with tab_data:
 # =========================================================
 # 📈 SAMPLE TAB
 # =========================================================
+# =========================================================
+# 📈 SAMPLE TAB
+# =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
+
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
+
+    # خيارات نوع الرسم
+    chart_type = st.radio(
+        "📊 نوع الرسم البياني",
+        ["Pie Chart", "Bar Chart", "Clustered Bar", "Stacked Bar", "Grid / Matrix"],
+        index=1,
+        horizontal=True
+    )
+
+    # طريقة عرض القيم
+    value_type = st.radio(
+        "📏 طريقة العرض",
+        ["Numbers (الأعداد)", "Percentages (النسب المئوية)"],
+        index=1,
+        horizontal=True
+    )
+
+    # اختيار متغير إضافي للتجميع (عند الحاجة)
+    extra_dim = None
+    if chart_type in ["Clustered Bar", "Stacked Bar"]:
+        possible_cols = [c for c in df.columns if c != "CENTER" and df[c].nunique() < 15]
+        extra_dim = st.selectbox("📚 اختر متغير إضافي للتجميع", ["None"] + possible_cols)
+        if extra_dim == "None":
+            extra_dim = None
+
+    # إنشاء الرسوم
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
-        counts["%"] = counts["Count"] / total * 100
+        counts["Percentage"] = counts["Count"] / total * 100
+
+        value_col = "Count" if value_type.startswith("Numbers") else "Percentage"
+
         title = f"{col} — {total:,} رد"
-        if chart_type == "دائري Pie":
-            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
-        else:
-            fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
-        st.plotly_chart(fig, use_container_width=True)
+
+        # Pie Chart
+        if chart_type == "Pie Chart":
+            fig = px.pie(
+                counts, names=col, values=value_col,
+                hole=0.3,
+                title=title,
+                color_discrete_sequence=PASTEL
+            )
+
+        # Simple Bar Chart
+        elif chart_type == "Bar Chart":
+            fig = px.bar(
+                counts,
+                x=col,
+                y=value_col,
+                text=value_col,
+                color=col,
+                color_discrete_sequence=PASTEL,
+                title=title
+            )
+            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}", textposition="outside")
+
+        # Clustered Bar (مجموعة حسب متغير إضافي)
+        elif chart_type == "Clustered Bar" and extra_dim and extra_dim in df.columns:
+            grouped = df.groupby([col, extra_dim]).size().reset_index(name="Count")
+            grouped["Percentage"] = grouped["Count"] / grouped["Count"].sum() * 100
+            fig = px.bar(
+                grouped,
+                x=col,
+                y=value_col,
+                color=extra_dim,
+                barmode="group",
+                text=value_col,
+                title=f"{col} حسب {extra_dim}",
+                color_discrete_sequence=PASTEL
+            )
+            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}", textposition="outside")
+
+        # Stacked Bar
+        elif chart_type == "Stacked Bar" and extra_dim and extra_dim in df.columns:
+            grouped = df.groupby([col, extra_dim]).size().reset_index(name="Count")
+            grouped["Percentage"] = grouped["Count"] / grouped["Count"].sum() * 100
+            fig = px.bar(
+                grouped,
+                x=col,
+                y=value_col,
+                color=extra_dim,
+                barmode="stack",
+                text=value_col,
+                title=f"{col} (Stacked by {extra_dim})",
+                color_discrete_sequence=PASTEL
+            )
+            fig.update_traces(texttemplate="%{text:.1f}" if value_type.startswith("Percent") else "%{text}")
+
+        # Grid / Matrix View
+        elif chart_type == "Grid / Matrix":
+            st.write(f"### 🧩 عرض شبكي — {col}")
+            matrix = counts[[col, "Count", "Percentage"]].copy()
+            matrix.columns = ["القيمة", "العدد", "النسبة المئوية"]
+            st.dataframe(matrix.style.format({"النسبة المئوية": "{:.1f}%"}), use_container_width=True)
+            continue  # لا نرسم شكل
+
+        # عرض الشكل
+        if chart_type != "Grid / Matrix":
+            st.plotly_chart(fig, use_container_width=True)
 
 
 # =========================================================
@@ -429,6 +522,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
