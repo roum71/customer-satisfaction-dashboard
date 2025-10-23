@@ -179,6 +179,42 @@ tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.ta
     ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
 )
 
+
+# =========================================================
+# 📁 DATA TAB — Multi-language headers
+# =========================================================
+with tab_data:
+    st.subheader("📁 البيانات بعد الفلاتر")
+
+    questions_map_ar, questions_map_en = {}, {}
+    if "QUESTIONS" in lookup_catalog:
+        qtbl = lookup_catalog["QUESTIONS"]
+        qtbl.columns = [c.strip().upper() for c in qtbl.columns]
+        code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
+        ar_col = next((c for c in qtbl.columns if "ARABIC" in c or c == "ARABIC"), None)
+        en_col = next((c for c in qtbl.columns if "ENGLISH" in c or c == "ENGLISH"), None)
+
+        if code_col and ar_col and en_col:
+            qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip().str.upper()
+            questions_map_ar = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col]))
+            questions_map_en = dict(zip(qtbl["CODE_NORM"], qtbl[en_col]))
+
+    df_display = df.copy()
+    df_display.columns = [c.strip() for c in df_display.columns]
+    ar_row = [questions_map_ar.get(c.strip().upper(), "") for c in df_display.columns]
+    en_row = [questions_map_en.get(c.strip().upper(), "") for c in df_display.columns]
+    df_final = pd.concat([pd.DataFrame([ar_row, en_row], columns=df_display.columns), df_display], ignore_index=True)
+
+    st.dataframe(df_final, use_container_width=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_final.to_excel(writer, index=False)
+    st.download_button("📥 تنزيل البيانات", buffer.getvalue(), file_name=f"Filtered_Data_{ts}.xlsx")
+
+
+
+
 # =========================================================
 # 📈 SAMPLE TAB
 # =========================================================
@@ -345,6 +381,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
