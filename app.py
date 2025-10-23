@@ -339,10 +339,10 @@ with tab_sample:
             continue  # لا رسم بياني هنا
 
         # 📈 عرض الشكل النهائي
-        if chart_type != "Grid / Matrix":
+        if chart_type != "Grid / Matrix" and "fig" in locals():
             st.plotly_chart(fig, use_container_width=True)
-
-
+            
+    
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
@@ -514,6 +514,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
