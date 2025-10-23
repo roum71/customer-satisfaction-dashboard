@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.7 (Executive Edition)
-Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
+Customer Satisfaction Dashboard — v10.7 (Fixed & Stable)
+Unified | Secure | Multi-Center | Lookup | KPI Gauges | Dimensions | Pareto | Services Overview
 """
 
 import streamlit as st
@@ -120,11 +120,18 @@ def series_to_percent(vals):
 
 def detect_nps(df):
     cands = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
-    if not cands: return np.nan
+    if not cands: return np.nan, 0, 0, 0
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
-    if len(s)==0: return np.nan
-    promoters = (s>=9).sum(); detractors = (s<=6).sum()
-    return (promoters - detractors)/len(s)*100
+    if len(s)==0: return np.nan, 0, 0, 0
+    promoters = (s>=9).sum()
+    passives = ((s>=7)&(s<=8)).sum()
+    detractors = (s<=6).sum()
+    total = len(s)
+    promoters_pct = promoters/total*100
+    passives_pct = passives/total*100
+    detractors_pct = detractors/total*100
+    nps = promoters_pct - detractors_pct
+    return nps, promoters_pct, passives_pct, detractors_pct
 
 # =========================================================
 # FILTERS
@@ -142,12 +149,12 @@ for col, values in filters.items():
 # =========================================================
 # TABS
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs(
-    ["البيانات", "📈 توزيع العينة", "📊 المؤشرات", "📋 الخدمات", "💬 Pareto"]
+tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
+    ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
 )
 
 # =========================================================
-# 📁 DATA TAB — Multi-language headers
+# 📁 DATA TAB
 # =========================================================
 with tab_data:
     st.subheader("📁 البيانات بعد الفلاتر")
@@ -157,8 +164,8 @@ with tab_data:
         qtbl = lookup_catalog["QUESTIONS"]
         qtbl.columns = [c.strip().upper() for c in qtbl.columns]
         code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
-        ar_col = next((c for c in qtbl.columns if "ARABIC" in c or c == "ARABIC"), None)
-        en_col = next((c for c in qtbl.columns if "ENGLISH" in c or c == "ENGLISH"), None)
+        ar_col = next((c for c in qtbl.columns if "ARABIC" in c), None)
+        en_col = next((c for c in qtbl.columns if "ENGLISH" in c), None)
 
         if code_col and ar_col and en_col:
             qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip().str.upper()
@@ -197,8 +204,6 @@ with tab_sample:
             fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
 
-
-
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
@@ -206,8 +211,7 @@ with tab_kpis:
     st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-   nps = detect_nps(df)
-prom = passv = detr = np.nan
+    nps, prom, passv, detr = detect_nps(df)
 
     c1, c2, c3 = st.columns(3)
     for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
@@ -230,7 +234,7 @@ prom = passv = detr = np.nan
     """)
 
 # =========================================================
-# 🧩 DIMENSIONS TAB — New
+# 🧩 DIMENSIONS TAB
 # =========================================================
 with tab_dimensions:
     st.subheader("🧩 تحليل الأبعاد")
@@ -244,7 +248,6 @@ with tab_dimensions:
             summary.append({"Dimension": col, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
-        # ربط بالأسماء من ملف Data_tables.xlsx إن وُجد
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -268,11 +271,25 @@ with tab_dimensions:
         st.dataframe(dims, use_container_width=True)
 
 # =========================================================
+# 📋 SERVICES TAB
+# =========================================================
+with tab_services:
+    st.subheader("📋 تحليل الخدمات")
+    if "SERVICE" not in df.columns:
+        st.warning("⚠️ لا يوجد عمود للخدمات.")
+    else:
+        svc_summary = df.groupby("SERVICE").agg({"Dim6.1":"mean","Dim6.2":"mean"}).reset_index()
+        svc_summary.rename(columns={"Dim6.1":"CSAT","Dim6.2":"CES"}, inplace=True)
+        st.dataframe(svc_summary, use_container_width=True)
+        fig = px.bar(svc_summary, x="SERVICE", y=["CSAT","CES"], barmode="group", color_discrete_sequence=PASTEL)
+        st.plotly_chart(fig, use_container_width=True)
+
+# =========================================================
 # 💬 PARETO TAB
 # =========================================================
 with tab_pareto:
     st.subheader("💬 تحليل الملاحظات (Pareto)")
-    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","unsat","reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
@@ -280,19 +297,19 @@ with tab_pareto:
         df["__clean"] = df[col].astype(str).str.lower()
         df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
         df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
-        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
+        empty_terms = {""," ","لا يوجد","لايوجد","لا شيء","no","none","nothing","جيد","ممتاز","ok"}
         df = df[~df["__clean"].isin(empty_terms)]
         df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
 
         themes = {
-            "Parking / مواقف السيارات": ["موقف", "مواقف", "parking"],
-            "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
-            "Staff / الموظفون": ["موظف", "تعامل", "staff"],
-            "Fees / الرسوم": ["رسوم", "دفع", "fee"],
-            "Process / الإجراءات": ["اجراء", "process", "انجاز"],
-            "Platform / المنصة": ["تطبيق", "app", "system"],
-            "Facility / المكان": ["مكان", "نظافة", "ازدحام"],
-            "Communication / التواصل": ["رد", "تواصل", "اتصال"]
+            "Parking / مواقف السيارات":["موقف","مواقف","parking"],
+            "Waiting / الانتظار":["انتظار","بطء","delay","slow"],
+            "Staff / الموظفون":["موظف","تعامل","staff"],
+            "Fees / الرسوم":["رسوم","دفع","fee"],
+            "Process / الإجراءات":["اجراء","process","انجاز"],
+            "Platform / المنصة":["تطبيق","app","system"],
+            "Facility / المكان":["مكان","نظافة","ازدحام"],
+            "Communication / التواصل":["رد","تواصل","اتصال"]
         }
 
         def classify_theme(t):
@@ -305,17 +322,17 @@ with tab_pareto:
         df = df[df["Theme"] != "Other / أخرى"]
 
         counts = df["Theme"].value_counts().reset_index()
-        counts.columns = ["Theme", "Count"]
-        counts["%"] = counts["Count"] / counts["Count"].sum() * 100
+        counts.columns = ["Theme","Count"]
+        counts["%"] = counts["Count"]/counts["Count"].sum()*100
         counts["Cum%"] = counts["%"].cumsum()
-        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
+        counts["Color"] = np.where(counts["Cum%"] <= 80,"#e74c3c","#95a5a6")
 
-        all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
-        counts = counts.merge(all_answers, on="Theme", how="left")
-        counts.rename(columns={"__clean": "جميع الإجابات"}, inplace=True)
+        all_answers = df.groupby("Theme")["__clean"].apply(lambda x:" / ".join(x.astype(str))).reset_index()
+        counts = counts.merge(all_answers,on="Theme",how="left")
+        counts.rename(columns={"__clean":"جميع الإجابات"},inplace=True)
 
-        st.dataframe(counts[["Theme", "Count", "%", "Cum%", "جميع الإجابات"]]
-                     .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}), use_container_width=True)
+        st.dataframe(counts[["Theme","Count","%","Cum%","جميع الإجابات"]]
+                     .style.format({"%":"{:.1f}","Cum%":"{:.1f}"}), use_container_width=True)
 
         fig = go.Figure()
         fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="عدد الملاحظات")
@@ -333,5 +350,3 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-
-
