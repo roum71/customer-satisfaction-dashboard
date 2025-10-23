@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.1 (Stable)
-Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
+Customer Satisfaction Dashboard — v10.5
+Unified | Bilingual | Lookup Merge | KPIs | Pareto | Services Overview
 """
 
 import streamlit as st
@@ -11,8 +11,8 @@ import numpy as np
 import plotly.express as px
 import plotly.graph_objects as go
 from pathlib import Path
-import re, io
 from datetime import datetime
+import re, io
 
 # =========================================================
 # 🔐 USERS
@@ -32,7 +32,7 @@ st.set_page_config(page_title="لوحة تجربة المتعاملين — رأ
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# LANGUAGE
+# LANGUAGE SELECTION
 # =========================================================
 lang = st.sidebar.radio("🌍 اللغة / Language", ["العربية", "English"], index=0)
 if lang == "العربية":
@@ -43,21 +43,13 @@ if lang == "العربية":
     """, unsafe_allow_html=True)
 
 # =========================================================
-# LOGIN
+# LOGIN SECTION
 # =========================================================
-center_options = list(USER_KEYS.keys())
 st.sidebar.header("🏢 اختر المركز / Select Center")
-selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
+selected_center = st.sidebar.selectbox("Select Center / اختر المركز", list(USER_KEYS.keys()))
 
-# 🧠 تأمين حالة الجلسة
 if "authorized" not in st.session_state:
-    st.session_state["authorized"] = False
-if "center" not in st.session_state:
-    st.session_state["center"] = None
-if "role" not in st.session_state:
-    st.session_state["role"] = None
-if "file" not in st.session_state:
-    st.session_state["file"] = None
+    st.session_state.update({"authorized": False, "center": None, "role": None, "file": None})
 
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
     st.sidebar.subheader("🔑 كلمة المرور / Password")
@@ -99,7 +91,7 @@ if df is None:
     st.stop()
 
 # =========================================================
-# 🧩 LOAD LOOKUP TABLES (DIRECT MATCH)
+# LOOKUP TABLES MERGE
 # =========================================================
 lookup_path = Path("Data_tables.xlsx")
 lookup_catalog = {}
@@ -118,10 +110,23 @@ for col in df.columns:
         merge_key = "CODE" if "CODE" in tbl.columns else tbl.columns[0]
         lang_col = "ARABIC" if lang == "العربية" else "ENGLISH"
         if lang_col in tbl.columns:
-            df = df.merge(tbl[[merge_key, lang_col]],
-                          how="left", left_on=col, right_on=merge_key)
+            df = df.merge(tbl[[merge_key, lang_col]], how="left", left_on=col, right_on=merge_key)
             df.rename(columns={lang_col: f"{col}_name"}, inplace=True)
             df.drop(columns=[merge_key], inplace=True, errors="ignore")
+
+# =========================================================
+# COMBINE CODE + MEANING (BILINGUAL)
+# =========================================================
+def combine_code_and_name(df_in):
+    df_out = df_in.copy()
+    for col in df_out.columns:
+        if col.endswith("_name"):
+            base = col.replace("_name", "")
+            if base in df_out.columns:
+                df_out[f"{base}_display"] = df_out[base].astype(str) + " — " + df_out[col].astype(str)
+    return df_out
+
+df = combine_code_and_name(df)
 
 # =========================================================
 # FUNCTIONS
@@ -130,8 +135,8 @@ def series_to_percent(vals):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
     if len(vals) == 0: return np.nan
     mx = vals.max()
-    if mx <= 5: return ((vals - 1) / 4 * 100).mean()
-    elif mx <= 10: return ((vals - 1) / 9 * 100).mean()
+    if mx <= 5: return ((vals - 1)/4*100).mean()
+    elif mx <= 10: return ((vals - 1)/9*100).mean()
     else: return vals.mean()
 
 def detect_nps(df):
@@ -147,13 +152,11 @@ def detect_nps(df):
 # =========================================================
 filter_cols = [c for c in df.columns if c.endswith("_name") and df[c].nunique() > 1]
 filters = {}
-
 with st.sidebar.expander("🎛️ الفلاتر / Filters", expanded=False):
     for col in filter_cols:
         options = sorted(df[col].dropna().unique().tolist())
-        selection = st.multiselect(f"{col.replace('_name','')}", options, default=options)
+        selection = st.multiselect(col.replace("_name",""), options, default=options)
         filters[col] = selection
-
 for col, values in filters.items():
     df = df[df[col].isin(values)]
 
@@ -188,47 +191,23 @@ with tab_sample:
         st.warning("⚠️ لا توجد بيانات.")
         st.stop()
 
-    chart_option = st.selectbox(
-        "📊 اختر نوع العرض:",
-        ["مخطط دائري Pie","أعمدة عمودية Bar","أعمدة أفقية Horizontal Bar","جدول شبكي Grid"],
-        index=1
-    )
+    chart_option = st.selectbox("📊 اختر نوع العرض:", ["Pie","Bar","Horizontal","Grid"], index=1)
 
     named_cols = list(filters.keys())
 
-    if chart_option == "مخطط دائري Pie":
-        for col in named_cols:
-            counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "عدد الردود"]
-            fig = px.pie(counts, names=col, values="عدد الردود", hole=0.3,
-                         title=f"توزيع {col}", color_discrete_sequence=PASTEL)
-            st.plotly_chart(fig, use_container_width=True)
-
-    elif chart_option == "أعمدة عمودية Bar":
-        for col in named_cols:
-            counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "عدد الردود"]
-            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود",
-                         color=col, color_discrete_sequence=PASTEL,
-                         title=f"توزيع {col}")
-            fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
-
-    elif chart_option == "أعمدة أفقية Horizontal Bar":
-        for col in named_cols:
-            counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "عدد الردود"]
-            fig = px.bar(counts, y=col, x="عدد الردود", text="عدد الردود",
-                         orientation="h", color=col, color_discrete_sequence=PASTEL,
-                         title=f"توزيع {col} (أفقي)")
-            fig.update_traces(textposition="outside")
-            st.plotly_chart(fig, use_container_width=True)
-
-    elif chart_option == "جدول شبكي Grid":
-        for col in named_cols:
-            counts = df[col].value_counts().reset_index()
-            counts.columns = [col, "عدد الردود"]
+    for col in named_cols:
+        counts = df[col].value_counts().reset_index()
+        counts.columns = [col, "عدد الردود"]
+        if chart_option == "Pie":
+            fig = px.pie(counts, names=col, values="عدد الردود", hole=0.3, color_discrete_sequence=PASTEL)
+        elif chart_option == "Bar":
+            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود", color=col, color_discrete_sequence=PASTEL)
+        elif chart_option == "Horizontal":
+            fig = px.bar(counts, y=col, x="عدد الردود", orientation="h", text="عدد الردود", color=col, color_discrete_sequence=PASTEL)
+        else:
             st.dataframe(counts, use_container_width=True)
+            continue
+        st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # 📊 KPIs TAB
@@ -256,36 +235,34 @@ with tab_kpis:
 # =========================================================
 with tab_services:
     st.subheader("📋 تحليل الخدمات")
-    service_candidates = [c for c in df.columns if re.search(r'(serv|خدم)', c, re.IGNORECASE)]
-    if not service_candidates:
+    service_col = None
+    for candidate in ["SERVICE_display", "SERVICE_name", "SERVICE"]:
+        if candidate in df.columns:
+            service_col = candidate
+            break
+    if not service_col:
         st.warning("⚠️ لم يتم العثور على عمود للخدمات.")
-        st.info(f"الأعمدة المتوفرة: {', '.join(df.columns)}")
         st.stop()
-    service_col = service_candidates[0]
-    name_candidates = [c for c in df.columns if re.search(r'(name|arabic|english|اسم)', c, re.IGNORECASE) and re.search(r'(serv|خدم)', c, re.IGNORECASE)]
-    service_display_col = name_candidates[0] if name_candidates else service_col
-    service_summary = (
-        df.groupby(service_display_col)
-          .agg(CSAT=("Dim6.1", series_to_percent),
-               CES=("Dim6.2", series_to_percent),
-               عدد_الردود=(service_display_col, "count"))
-          .reset_index()
-          .sort_values("CSAT", ascending=False)
-    )
+    service_summary = (df.groupby(service_col)
+                       .agg(CSAT=("Dim6.1", series_to_percent),
+                            CES=("Dim6.2", series_to_percent),
+                            عدد_الردود=(service_col, "count"))
+                       .reset_index()
+                       .sort_values("CSAT", ascending=False))
     service_summary["التصنيف اللوني"] = np.select(
         [service_summary["CSAT"] >= 80, service_summary["CSAT"] >= 60],
         ["🟢 مرتفع", "🟡 متوسط"],
         default="🔴 منخفض"
     )
-    st.dataframe(service_summary[["التصنيف اللوني", service_display_col, "عدد_الردود", "CSAT", "CES"]],
+    st.dataframe(service_summary[[service_col, "عدد_الردود", "CSAT", "CES", "التصنيف اللوني"]],
                  use_container_width=True)
-    fig_bar = px.bar(service_summary, x=service_display_col, y="CSAT",
-                     text="عدد_الردود", color="التصنيف اللوني",
-                     color_discrete_map={"🟢 مرتفع":"#c8f7c5","🟡 متوسط":"#fcf3cf","🔴 منخفض":"#f5b7b1"},
-                     title="رضا المتعاملين حسب الخدمة (CSAT)")
-    fig_bar.update_traces(textposition="outside")
-    fig_bar.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
-    st.plotly_chart(fig_bar, use_container_width=True)
+    fig = px.bar(service_summary, x=service_col, y="CSAT", text="عدد_الردود",
+                 color="التصنيف اللوني",
+                 color_discrete_map={"🟢 مرتفع":"#c8f7c5","🟡 متوسط":"#fcf3cf","🔴 منخفض":"#f5b7b1"},
+                 title="رضا المتعاملين حسب الخدمة (CSAT)")
+    fig.update_traces(textposition="outside")
+    fig.update_layout(xaxis_title="الخدمة", yaxis_title="CSAT (%)")
+    st.plotly_chart(fig, use_container_width=True)
 
 # =========================================================
 # 💬 PARETO TAB
