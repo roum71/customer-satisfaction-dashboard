@@ -136,12 +136,7 @@ def detect_nps(df):
 # =========================================================
 # FILTERS
 # =========================================================
-# =========================================================
-# FILTERS (Arabic/English Names from Lookup)
-# =========================================================
-# =========================================================
-# FILTERS (Arabic/English Mapping, Stable Version)
-# =========================================================
+
 filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
 
@@ -182,6 +177,9 @@ df = df_filtered.copy()
 # =========================================================
 # 📈 SAMPLE TAB
 # =========================================================
+
+ab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
+    ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
@@ -344,6 +342,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
