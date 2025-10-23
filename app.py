@@ -139,6 +139,9 @@ def detect_nps(df):
 # =========================================================
 # FILTERS (Arabic/English Names from Lookup)
 # =========================================================
+# =========================================================
+# FILTERS (Arabic/English Mapping, Stable Version)
+# =========================================================
 filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
 
@@ -151,16 +154,21 @@ with st.sidebar.expander("🎛️ الفلاتر / Filters"):
         if lookup_name in lookup_catalog:
             tbl = lookup_catalog[lookup_name]
             tbl.columns = [c.strip().upper() for c in tbl.columns]
+            
+            # Detect columns (case-insensitive)
             ar_col = next((c for c in tbl.columns if "ARABIC" in c or "SERVICE2" in c), None)
             en_col = next((c for c in tbl.columns if "ENGLISH" in c), None)
             code_col = next((c for c in tbl.columns if "CODE" in c or lookup_name in c), None)
+
             if code_col and ((lang == "العربية" and ar_col) or (lang == "English" and en_col)):
                 name_col = ar_col if lang == "العربية" else en_col
                 name_map = dict(zip(tbl[code_col].astype(str), tbl[name_col].astype(str)))
                 df_filtered[col] = df_filtered[col].astype(str).map(name_map).fillna(df_filtered[col])
                 mapped = True
+        
         if not mapped:
             st.sidebar.warning(f"⚠️ Lookup not applied for {col}")
+
         options = df_filtered[col].dropna().unique().tolist()
         selection = st.multiselect(col, options, default=options)
         filters[col] = selection
@@ -336,6 +344,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
