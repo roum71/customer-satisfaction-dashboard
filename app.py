@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.10 (Executive Edition)
-Unified | Multi-Center | Lookup | KPI Gauges | Pareto | Dimensions
+Customer Satisfaction Dashboard — v10.7 (Executive Edition)
+Unified | Secure | Multi-Center | Lookup | KPI Gauges | Pareto | Services Overview
 """
 
 import streamlit as st
@@ -107,46 +107,34 @@ if lookup_path.exists():
         lookup_catalog[sheet.upper()] = tbl
 
 # =========================================================
-# FUNCTIONS
+# UTILS
 # =========================================================
 def series_to_percent(vals):
     vals = pd.to_numeric(vals, errors="coerce").dropna()
     if len(vals) == 0:
         return np.nan
     mx = vals.max()
-    if mx <= 5:
-        return ((vals - 1)/4*100).mean()
-    elif mx <= 10:
-        return ((vals - 1)/9*100).mean()
-    else:
-        return vals.mean()
+    if mx <= 5: return ((vals - 1)/4*100).mean()
+    elif mx <= 10: return ((vals - 1)/9*100).mean()
+    else: return vals.mean()
 
 def detect_nps(df):
     cands = [c for c in df.columns if "nps" in c.lower() or "recommend" in c.lower()]
-    if not cands:
-        return np.nan, 0, 0, 0
+    if not cands: return np.nan
     s = pd.to_numeric(df[cands[0]], errors="coerce").dropna()
-    if len(s) == 0:
-        return np.nan, 0, 0, 0
-    promoters = (s >= 9).sum()
-    passives = ((s >= 7) & (s <= 8)).sum()
-    detractors = (s <= 6).sum()
-    total = len(s)
-    promoters_pct = promoters / total * 100
-    passives_pct = passives / total * 100
-    detractors_pct = detractors / total * 100
-    nps = promoters_pct - detractors_pct
-    return nps, promoters_pct, passives_pct, detractors_pct
+    if len(s)==0: return np.nan
+    promoters = (s>=9).sum(); detractors = (s<=6).sum()
+    return (promoters - detractors)/len(s)*100
 
 # =========================================================
-# FILTERS — show names instead of codes
+# FILTERS
 # =========================================================
-filter_cols = [c for c in df.columns if c.endswith("_name")]
+filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
 filters = {}
 with st.sidebar.expander("🎛️ الفلاتر / Filters"):
     for col in filter_cols:
         options = df[col].dropna().unique().tolist()
-        selection = st.multiselect(col.replace("_name", ""), options, default=options)
+        selection = st.multiselect(col, options, default=options)
         filters[col] = selection
 for col, values in filters.items():
     df = df[df[col].isin(values)]
@@ -154,44 +142,62 @@ for col, values in filters.items():
 # =========================================================
 # TABS
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_services, tab_dimensions, tab_pareto = st.tabs(
-    ["البيانات", "📈 توزيع العينة", "📊 المؤشرات", "📋 الخدمات", "🧩 الأبعاد", "💬 Pareto"]
+tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs(
+    ["البيانات", "📈 توزيع العينة", "📊 المؤشرات", "📋 الخدمات", "💬 Pareto"]
 )
 
 # =========================================================
-# 📁 DATA TAB
+# 📁 DATA TAB — Multi-language headers
 # =========================================================
 with tab_data:
-    st.subheader("📁 البيانات بعد الفلاتر الحالية")
-    st.dataframe(df, use_container_width=True)
+    st.subheader("📁 البيانات بعد الفلاتر")
+
+    questions_map_ar, questions_map_en = {}, {}
+    if "QUESTIONS" in lookup_catalog:
+        qtbl = lookup_catalog["QUESTIONS"]
+        qtbl.columns = [c.strip().upper() for c in qtbl.columns]
+        code_col = next((c for c in qtbl.columns if "CODE" in c or "DIMENSION" in c), None)
+        ar_col = next((c for c in qtbl.columns if "ARABIC" in c or c == "ARABIC"), None)
+        en_col = next((c for c in qtbl.columns if "ENGLISH" in c or c == "ENGLISH"), None)
+
+        if code_col and ar_col and en_col:
+            qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip().str.upper()
+            questions_map_ar = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col]))
+            questions_map_en = dict(zip(qtbl["CODE_NORM"], qtbl[en_col]))
+
+    df_display = df.copy()
+    df_display.columns = [c.strip() for c in df_display.columns]
+    ar_row = [questions_map_ar.get(c.strip().upper(), "") for c in df_display.columns]
+    en_row = [questions_map_en.get(c.strip().upper(), "") for c in df_display.columns]
+    df_final = pd.concat([pd.DataFrame([ar_row, en_row], columns=df_display.columns), df_display], ignore_index=True)
+
+    st.dataframe(df_final, use_container_width=True)
+    ts = datetime.now().strftime("%Y-%m-%d_%H%M")
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df_final.to_excel(writer, index=False)
+    st.download_button("📥 تنزيل البيانات", buffer.getvalue(), file_name=f"Filtered_Data_{ts}.xlsx")
 
 # =========================================================
-# 📈 SAMPLE TAB — Pie shows counts
+# 📈 SAMPLE TAB
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة")
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
-    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة عمودية", "أعمدة أفقية"], index=0, horizontal=True)
-
+    chart_type = st.radio("📊 نوع الرسم", ["دائري Pie", "أعمدة Bar"], index=0, horizontal=True)
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
-        counts.columns = [col, "عدد الردود"]
-        title = f"{col.replace('_name', '')} — {total:,} رد"
-
+        counts.columns = [col, "Count"]
+        counts["%"] = counts["Count"]/total*100
+        title = f"{col} — {total:,} رد"
         if chart_type == "دائري Pie":
-            fig = px.pie(counts, names=col, values="عدد الردود", hole=0.3,
-                         title=title, color_discrete_sequence=PASTEL)
-            fig.update_traces(text=counts["عدد الردود"], textinfo="value+label")
-        elif chart_type == "أعمدة عمودية":
-            fig = px.bar(counts, x=col, y="عدد الردود", text="عدد الردود",
-                         title=title, color=col, color_discrete_sequence=PASTEL)
-            fig.update_traces(textposition="outside")
+            fig = px.pie(counts, names=col, values="Count", hole=0.3, title=title, color_discrete_sequence=PASTEL)
         else:
-            fig = px.bar(counts, y=col, x="عدد الردود", orientation="h", text="عدد الردود",
-                         title=title, color=col, color_discrete_sequence=PASTEL)
-            fig.update_traces(textposition="outside")
+            fig = px.bar(counts, x=col, y="Count", text="Count", color=col, color_discrete_sequence=PASTEL)
         st.plotly_chart(fig, use_container_width=True)
+
+
 
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
@@ -326,3 +332,4 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
