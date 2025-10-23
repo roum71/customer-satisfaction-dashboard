@@ -170,11 +170,13 @@ tab_data, tab_sample, tab_kpis, tab_services, tab_pareto = st.tabs([
 # =========================================================
 # 📁 DATA TAB (With Arabic/English Questions Headers)
 # =========================================================
+# =========================================================
+# 📁 DATA TAB — Arabic/English Headers (Fixed)
+# =========================================================
 with tab_data:
     st.subheader("📁 البيانات بعد الفلاتر")
 
     questions_map_ar, questions_map_en = {}, {}
-
     if "QUESTIONS" in lookup_catalog:
         qtbl = lookup_catalog["QUESTIONS"]
         qtbl.columns = [c.upper() for c in qtbl.columns]
@@ -184,26 +186,33 @@ with tab_data:
 
     df_display = df.copy()
 
-    # استبدال رؤوس الأعمدة إذا كانت موجودة في جدول الأسئلة
-    ar_header = []
-    en_header = []
-    for col in df_display.columns:
-        ar_header.append(questions_map_ar.get(col, col))
-        en_header.append(questions_map_en.get(col, col))
+    # إنشاء صفوف الوصف العربي والإنجليزي
+    ar_row = [questions_map_ar.get(c, "") for c in df_display.columns]
+    en_row = [questions_map_en.get(c, "") for c in df_display.columns]
 
-    # إنشاء DataFrame نهائي يضم السطرين الإضافيين
-    header_df = pd.DataFrame([ar_header, en_header], columns=df_display.columns)
-    combined_df = pd.concat([header_df, df_display], ignore_index=True)
+    # بناء DataFrame جديد مع الصفين العلويين
+    df_combined = pd.DataFrame([ar_row, en_row], columns=df_display.columns)
+    df_final = pd.concat([df_combined, df_display], ignore_index=True)
 
-    st.dataframe(combined_df, use_container_width=True, height=600)
+    # عرض بدون تكرار رأس الجدول
+    st.data_editor(
+        df_final,
+        use_container_width=True,
+        hide_index=True,
+        height=600
+    )
 
+    # حفظ ملف Excel مع نفس التنسيق
     ts = datetime.now().strftime("%Y-%m-%d_%H%M")
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
-        combined_df.to_excel(writer, index=False, sheet_name="Filtered_Data")
-    st.download_button("📥 تنزيل البيانات (Excel)", data=buffer.getvalue(),
-                       file_name=f"Filtered_Data_{ts}.xlsx",
-                       mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+        df_final.to_excel(writer, index=False, sheet_name="Filtered_Data")
+    st.download_button(
+        "📥 تنزيل البيانات (Excel)",
+        data=buffer.getvalue(),
+        file_name=f"Filtered_Data_{ts}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
 
 
 # =========================================================
@@ -354,4 +363,5 @@ with tab_pareto:
         st.plotly_chart(fig,use_container_width=True)
     else:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+
 
