@@ -199,7 +199,7 @@ df = df_filtered.copy()
 # 📈 TABS
 # =========================================================
 tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
-    ["📁 البيانات", "📈 توزيع العينة", "📊 المؤشرات", "🧩 الأبعاد", "📋 الخدمات", "💬 Pareto"]
+    ["📁 Servicesالبيانات", "📈 توزيع العينةSample Distribution", "📊 المؤشراتKPIs", "🧩 الأبعادDiemnsions", "📋 الخدمات", "💬 Pain"]
 )
 
 
@@ -606,6 +606,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
