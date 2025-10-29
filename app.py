@@ -249,7 +249,7 @@ with tab_sample:
 #   st.info("✅ Pie يعرض النسبة أو العدد حسب الاختيار")
 
     total = len(df)
-    st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
+    st.markdown(f"### 🧮 Total Responses إجمالي الردود: {total:,}")
 
     # 🟩 اختيار نوع الرسم
     chart_type = st.radio(
@@ -274,7 +274,7 @@ with tab_sample:
         counts["Percentage"] = counts["Count"] / total * 100
 
         value_col = "Count" if value_type.startswith("Numbers") else "Percentage"
-        title = f"{col} — {total:,} رد"
+        title = f"{col} — {total:,} Reponse رد"
 
         # 🥧 Pie Chart (يتبع الاختيار)
         if chart_type == "Pie Chart":
@@ -606,6 +606,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
