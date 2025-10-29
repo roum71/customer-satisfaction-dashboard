@@ -199,7 +199,7 @@ df = df_filtered.copy()
 # 📈 TABS
 # =========================================================
 tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
-    ["📁 Dataالبيانات", "📈 توزيع العينةSample Distribution", "📊 المؤشراتKPIs", "🧩 الأبعادDiemnsions", "📋 Servicesالخدمات", "💬 Pain"]
+    ["📁 Data البيانات", "📈 توزيع العينة Sample Distribution", "📊 المؤشرات KPIs", "🧩 الأبعاد Diemnsions", "📋 Services الخدمات", "💬 Pain Points المزعجات "]
 )
 
 
@@ -245,7 +245,7 @@ with tab_data:
 # 📈 SAMPLE TAB — Pie يتبع اختيار المستخدم (نسب أو أعداد)
 # =========================================================
 with tab_sample:
-    st.subheader("📈 توزيع العينة (نسخة ديناميكية)")
+    st.subheader("📈 توزيع العينة Sample Distribution")
 #   st.info("✅ Pie يعرض النسبة أو العدد حسب الاختيار")
 
     total = len(df)
@@ -606,6 +606,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
