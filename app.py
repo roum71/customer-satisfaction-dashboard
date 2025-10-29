@@ -158,7 +158,7 @@ def detect_nps(df):
 # =========================================================
 # FILTERS
 # =========================================================
-filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "CENTER"])]
+filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY","ACADEMIC_LEVEL"])]
 filters = {}
 
 df_filtered = df.copy()
@@ -207,7 +207,7 @@ tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.ta
 # 📁 DATA TAB — Multi-language headers
 # =========================================================
 with tab_data:
-    st.subheader("📁 البيانات بعد الفلاتر")
+    st.subheader("📁 البيانات الخام /Raw Data")
 
     questions_map_ar, questions_map_en = {}, {}
     if "QUESTIONS" in lookup_catalog:
@@ -246,7 +246,7 @@ with tab_data:
 # =========================================================
 with tab_sample:
     st.subheader("📈 توزيع العينة (نسخة ديناميكية)")
-    st.info("✅ Pie يعرض النسبة أو العدد حسب الاختيار")
+#   st.info("✅ Pie يعرض النسبة أو العدد حسب الاختيار")
 
     total = len(df)
     st.markdown(f"### 🧮 إجمالي الردود: {total:,}")
