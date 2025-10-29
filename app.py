@@ -158,7 +158,7 @@ def detect_nps(df):
 # =========================================================
 # FILTERS
 # =========================================================
-filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY","ACADEMIC_LEVEL"])]
+filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY","ACACDEMIC_LEVEL"])]
 filters = {}
 
 df_filtered = df.copy()
@@ -606,6 +606,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
