@@ -344,13 +344,13 @@ with tab_sample:
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
 with tab_kpis:
-    st.subheader("📊 المؤشرات الرئيسية (CSAT / CES / NPS)")
+    st.subheader("📊 السعادة / القيمة/ صافي نقاطي الترويج (CSAT / CES / NPS)")
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
     nps, prom, passv, detr = detect_nps(df)
 
     c1, c2, c3 = st.columns(3)
-    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
+    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT السعادة", "Value القيمة ", "NPS صافي نقاط الترويج"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=val if not np.isnan(val) else 0,
@@ -606,6 +606,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
