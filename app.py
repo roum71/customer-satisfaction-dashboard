@@ -279,48 +279,49 @@ with tab_data:
 # 📈 SAMPLE TAB
 # =========================================================
 # =========================================================
-# 📈 SAMPLE TAB — Pie يتبع اختيار المستخدم (نسب أو أعداد)
+# 📈 SAMPLE TAB — توزيع العينة (ثنائي اللغة كامل)
 # =========================================================
 with tab_sample:
     st.subheader(bi_text("📈 توزيع العينة", "Sample Distribution"))
+
+    # 🧮 إجمالي الردود
     total = len(df)
-    st.markdown(bi_text(f"### 🧮 إجمالي الردود: {total:,}", f"### 🧮 Total Responses: {total:,}"))
+    st.markdown(f"### 🧮 {bi_text('إجمالي الردود:', 'Total Responses:')} {total:,}")
 
-
-
-
-
-
-    total = len(df)
-    st.markdown(f"### 🧮 Total Responses إجمالي الردود: {total:,}")
-
-    # 🟩 اختيار نوع الرسم
+    # 🟩 نوع الرسم البياني
     chart_type = st.radio(
-        "📊 نوع الرسم البياني",
-        ["Pie Chart", "Bar Chart", "Grid / Matrix"],
+        bi_text("📊 نوع الرسم البياني / Chart Type", "📊 نوع الرسم البياني / Chart Type"),
+        [
+            bi_text("مخطط دائري (Pie Chart)", "Pie Chart"),
+            bi_text("مخطط أعمدة (Bar Chart)", "Bar Chart"),
+            bi_text("شبكي / مصفوفة (Grid / Matrix)", "Grid / Matrix")
+        ],
         index=1,
         horizontal=True
     )
 
-    # 🟨 اختيار طريقة العرض
+    # 🟨 طريقة العرض
     value_type = st.radio(
-        "📏 طريقة العرض",
-        ["Numbers (الأعداد)", "Percentages (النسب المئوية)"],
+        bi_text("📏 طريقة العرض / Display Mode", "📏 طريقة العرض / Display Mode"),
+        [
+            bi_text("الأعداد (Numbers)", "Numbers"),
+            bi_text("النسب المئوية (Percentages)", "Percentages")
+        ],
         index=1,
         horizontal=True
     )
 
-    # 🟪 تنفيذ الرسم
+    # 🧩 تنفيذ الرسم حسب الأعمدة المختارة
     for col in filter_cols:
         counts = df[col].value_counts().reset_index()
         counts.columns = [col, "Count"]
         counts["Percentage"] = counts["Count"] / total * 100
 
-        value_col = "Count" if value_type.startswith("Numbers") else "Percentage"
-        title = f"{col} — {total:,} Reponse رد"
+        value_col = "Count" if "Numbers" in value_type else "Percentage"
+        title = f"{bi_text(col, col)} — {total:,} {bi_text('ردود', 'Responses')}"
 
-        # 🥧 Pie Chart (يتبع الاختيار)
-        if chart_type == "Pie Chart":
+        # 🥧 Pie Chart
+        if "Pie" in chart_type:
             fig = px.pie(
                 counts,
                 names=col,
@@ -329,34 +330,15 @@ with tab_sample:
                 title=title,
                 color_discrete_sequence=PASTEL
             )
-
-            # تخصيص طريقة عرض النص داخل القطاعات
-            if value_col == "Percentage":
-                fig.update_traces(
-                    texttemplate="%{label}<br>%{percent:.1%}",
-                    textposition="inside",
-                    textfont_size=14
-                )
-            else:
-                fig.update_traces(
-                    texttemplate="%{label}<br>%{value}",
-                    textposition="inside",
-                    textfont_size=14
-                )
-
+            fig.update_traces(
+                texttemplate="%{label}<br>%{percent:.1%}" if value_col == "Percentage" else "%{label}<br>%{value}",
+                textposition="inside",
+                textfont_size=14
+            )
             st.plotly_chart(fig, use_container_width=True)
 
-            # عرض القيم أسفل الرسم بنفس النمط
-            label_col = "النسبة المئوية (%)" if value_col == "Percentage" else "العدد"
-            st.dataframe(
-                counts[[col, value_col]]
-                .rename(columns={value_col: label_col})
-                .style.format({label_col: "{:.1f}%" if value_col == "Percentage" else "{:,.0f}"}),
-                use_container_width=True
-            )
-
         # 📊 Bar Chart
-        elif chart_type == "Bar Chart":
+        elif "Bar" in chart_type:
             fig = px.bar(
                 counts,
                 x=col,
@@ -370,18 +352,29 @@ with tab_sample:
                 texttemplate="%{text:.1f}" if value_col == "Percentage" else "%{text}",
                 textposition="outside"
             )
+
+            fig.update_layout(
+                xaxis_title=bi_text("المتغير / Variable", "Variable"),
+                yaxis_title=bi_text("النسبة المئوية (%) / Percentage", "Percentage (%)")
+                if value_col == "Percentage"
+                else bi_text("العدد / Count", "Count"),
+            )
+
             st.plotly_chart(fig, use_container_width=True)
 
         # 🧩 Grid / Matrix View
-        elif chart_type == "Grid / Matrix":
-            st.write(f"### 🧩 عرض شبكي — {col}")
+        else:
+            st.write(f"### 🧩 {bi_text('عرض شبكي —', 'Grid View —')} {col}")
             matrix = counts[[col, "Count", "Percentage"]].copy()
-            matrix.columns = ["القيمة", "العدد", "النسبة المئوية"]
+            matrix.columns = [
+                bi_text("القيمة / Value", "Value"),
+                bi_text("العدد / Count", "Count"),
+                bi_text("النسبة المئوية / Percentage", "Percentage")
+            ]
             st.dataframe(
-                matrix.style.format({"النسبة المئوية": "{:.1f}%"}),
+                matrix.style.format({bi_text("النسبة المئوية / Percentage", "Percentage"): "{:.1f}%"}),
                 use_container_width=True
             )
-
     
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
@@ -744,6 +737,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
