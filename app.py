@@ -567,7 +567,7 @@ with tab_services:
     st.subheader(bi_text("📋 تحليل الخدمات", "Service Analysis"))
     st.info(bi_text("مقارنة مستويات السعادة والقيمة حسب الخدمة", 
                     "Compare Happiness and Value levels per service."))
-                    
+
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
     else:
@@ -612,10 +612,10 @@ with tab_services:
                     csat_col: "count"
                 })
                 .reset_index()
-                .rename(columns={csat_col: "عدد الردود"})
+                .rename(columns={csat_col: "#Responses/عدد الردود"})
             )
 
-            # دمج نتائج NPS مع بقية المؤشرات
+            # ✅ دمج نتائج NPS مع بقية المؤشرات
             summary = summary.merge(nps_df, on="SERVICE", how="left")
 
             # 🌐 استبدال أسماء الخدمات بالعربية / الإنجليزية من lookup
@@ -661,9 +661,9 @@ with tab_services:
                     "Happiness / سعادة (٪)": "{:.1f}%",
                     "Value / قيمة (٪)": "{:.1f}%",
                     "NPS / صافي نقاط الترويج (٪)": "{:.1f}%",
-                    "عدد الردود": "{:,.0f}"
+                    "#Responses/عدد الردود": "{:,.0f}"
                 })
-                .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])  # ✅ فقط هذين العمودين
+                .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])
             )
             st.dataframe(styled_table, use_container_width=True)
 
@@ -677,7 +677,7 @@ with tab_services:
             # 🎨 الرسم البياني — فقط للسعادة والقيمة
             if not summary.empty:
                 df_melted = summary.melt(
-                    id_vars=["الخدمة / Service", "عدد الردود"],
+                    id_vars=["الخدمة / Service", "#Responses/عدد الردود"],
                     value_vars=["Happiness / سعادة (٪)", "Value / قيمة (٪)"],
                     var_name="المؤشر",
                     value_name="القيمة"
@@ -690,7 +690,8 @@ with tab_services:
                     color="المؤشر",
                     barmode="group",
                     text="القيمة",
-                    title="📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة",
+                    title=bi_text("📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة", 
+                                  "📊 Comparison of Happiness and Value by Service"),
                     color_discrete_sequence=PASTEL
                 )
 
@@ -705,126 +706,144 @@ with tab_services:
                 )
                 fig.add_annotation(
                     xref="paper", x=1.02, y=80,
-                    text="🎯 الحد المستهدف (80%)",
+                    text=bi_text("🎯 الحد المستهدف (80%)", "🎯 Target Threshold (80%)"),
                     showarrow=False,
                     font=dict(color="green")
                 )
 
                 fig.update_layout(
-                    yaxis_title="النسبة المئوية (%)",
-                    xaxis_title="الخدمة / Service",
-                    legend_title="المؤشر",
+                    yaxis_title=bi_text("النسبة المئوية (%)", "Percentage (%)"),
+                    xaxis_title=bi_text("الخدمة / Service", "Service"),
+                    legend_title=bi_text("المؤشر", "Indicator"),
                     yaxis=dict(range=[0, 100])
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.")
+                st.info(bi_text("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.", 
+                                "ℹ️ No services with 30 or more responses."))
+
 
 # =========================================================
-# 💬 PARETO TAB
+# 💬 PARETO TAB — تحليل الملاحظات (ثنائي اللغة + محسّن)
 # =========================================================
 with tab_pareto:
     st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
     st.info(bi_text(
-        "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
+        "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا.",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
     ))
 
+    # 🔍 البحث عن الأعمدة النصية
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
+
     if not text_cols:
-        st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
+        st.warning(bi_text("⚠️ لا يوجد عمود نصي لتحليل Pareto.", "⚠️ No text column found for Pareto analysis."))
     else:
+        # ✅ استخدام أول عمود نصي
         col = text_cols[0]
+
+        # 🧹 تنظيف النصوص
         df["__clean"] = df[col].astype(str).str.lower()
         df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
         df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
-        empty_terms = {""," ","لا يوجد","لايوجد","لا شيء","no","none","nothing","جيد","ممتاز","ok"}
+
+        # 🔎 إزالة الردود الفارغة أو الإيجابية جدًا
+        empty_terms = {"", " ", "لا يوجد", "لايوجد", "لا شيء", "no", "none", "nothing", "جيد", "ممتاز", "ok"}
         df = df[~df["__clean"].isin(empty_terms)]
         df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
 
-        themes = {
-            "Parking / مواقف السيارات":["موقف","مواقف","parking"],
-            "Waiting / الانتظار":["انتظار","بطء","delay","slow"],
-            "Staff / الموظفون":["موظف","تعامل","staff"],
-            "Fees / الرسوم":["رسوم","دفع","fee"],
-            "Process / الإجراءات":["اجراء","process","انجاز"],
-            "Platform / المنصة":["تطبيق","app","system"],
-            "Facility / المكان":["مكان","نظافة","ازدحام"],
-            "Communication / التواصل":["رد","تواصل","اتصال"]
-        }
+        if df.empty:
+            st.info(bi_text("ℹ️ لا توجد ملاحظات كافية للتحليل.", "ℹ️ Not enough comments to analyze."))
+        else:
+            # 🗂️ تصنيف الملاحظات إلى محاور رئيسية (Themes)
+            themes = {
+                bi_text("Parking / مواقف السيارات", "Parking"): ["موقف", "مواقف", "parking"],
+                bi_text("Waiting / الانتظار", "Waiting"): ["انتظار", "بطء", "delay", "slow"],
+                bi_text("Staff / الموظفون", "Staff"): ["موظف", "تعامل", "staff"],
+                bi_text("Fees / الرسوم", "Fees"): ["رسوم", "دفع", "fee"],
+                bi_text("Process / الإجراءات", "Process"): ["اجراء", "process", "انجاز"],
+                bi_text("Platform / المنصة", "Platform"): ["تطبيق", "app", "system"],
+                bi_text("Facility / المكان", "Facility"): ["مكان", "نظافة", "ازدحام"],
+                bi_text("Communication / التواصل", "Communication"): ["رد", "تواصل", "اتصال"]
+            }
 
-        def classify_theme(t):
-            for th, ws in themes.items():
-                if any(w in t for w in ws):
-                    return th
-            return "Other / أخرى"
+            def classify_theme(t):
+                for th, ws in themes.items():
+                    if any(w in t for w in ws):
+                        return th
+                return bi_text("Other / أخرى", "Other")
 
-        df["Theme"] = df["__clean"].apply(classify_theme)
-        df = df[df["Theme"] != "Other / أخرى"]
+            df["Theme"] = df["__clean"].apply(classify_theme)
+            df = df[df["Theme"] != bi_text("Other / أخرى", "Other")]
 
-        counts = df["Theme"].value_counts().reset_index()
-        counts.columns = ["Theme","Count"]
-        counts["%"] = counts["Count"]/counts["Count"].sum()*100
-        counts["Cum%"] = counts["%"].cumsum()
-        counts["Color"] = np.where(counts["Cum%"] <= 80,"#e74c3c","#95a5a6")
+            if df.empty:
+                st.info(bi_text("ℹ️ لا توجد ملاحظات تنتمي لمحاور رئيسية.", "ℹ️ No comments match any major themes."))
+            else:
+                # 📊 حساب عدد الملاحظات والنسب
+                counts = df["Theme"].value_counts().reset_index()
+                counts.columns = ["Theme", "Count"]
+                counts["%"] = counts["Count"] / counts["Count"].sum() * 100
+                counts["Cum%"] = counts["%"].cumsum()
 
-        all_answers = df.groupby("Theme")["__clean"].apply(lambda x:" / ".join(x.astype(str))).reset_index()
-        counts = counts.merge(all_answers,on="Theme",how="left")
-        counts.rename(columns={"__clean":"جميع الإجابات/ All Responses"},inplace=True)
+                # 🎨 تلوين حسب النسبة التراكمية
+                counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
 
-        st.dataframe(counts[["Theme","Count","%","Cum%","جميع الإجابات/ All Responses"]]
-                     .style.format({"%":"{:.1f}","Cum%":"{:.1f}"}), use_container_width=True)
+                # 🧾 جميع الردود لكل محور
+                all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
+                counts = counts.merge(all_answers, on="Theme", how="left")
+                counts.rename(columns={"__clean": bi_text("جميع الإجابات", "All Responses")}, inplace=True)
 
-        fig = go.Figure()
-        fig.add_bar(x=counts["Theme"], y=counts["Count"], marker_color=counts["Color"], name="عدد الملاحظات")
-        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="النسبة التراكمية", yaxis="y2", mode="lines+markers")
-        fig.update_layout(title="Pareto — المحاور الرئيسية",
-                          yaxis=dict(title="عدد الملاحظات"),
-                          yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
-                          bargap=0.25, height=600)
-        st.plotly_chart(fig, use_container_width=True)
+                # 📋 عرض الجدول
+                st.dataframe(
+                    counts[["Theme", "Count", "%", "Cum%", bi_text("جميع الإجابات", "All Responses")]]
+                    .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+                    use_container_width=True
+                )
 
-        pareto_buffer = io.BytesIO()
-        with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
-            counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
-        st.download_button("📥 تنزيل جدول Pareto (Excel)",
-                           data=pareto_buffer.getvalue(),
-                           file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
-                           mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                # 📈 رسم مخطط Pareto
+                fig = go.Figure()
 
+                # العمود (عدد الملاحظات)
+                fig.add_bar(
+                    x=counts["Theme"],
+                    y=counts["Count"],
+                    marker_color=counts["Color"],
+                    name=bi_text("عدد الملاحظات", "Number of Comments")
+                )
 
+                # الخط (النسبة التراكمية)
+                fig.add_scatter(
+                    x=counts["Theme"],
+                    y=counts["Cum%"],
+                    name=bi_text("النسبة التراكمية", "Cumulative %"),
+                    yaxis="y2",
+                    mode="lines+markers",
+                    line=dict(color="#2e86de", width=2)
+                )
 
+                fig.update_layout(
+                    title=bi_text("تحليل Pareto — المحاور الرئيسية", "Pareto Analysis — Main Themes"),
+                    yaxis=dict(title=bi_text("عدد الملاحظات", "Number of Comments")),
+                    yaxis2=dict(title=bi_text("النسبة التراكمية (%)", "Cumulative Percentage (%)"), 
+                                overlaying="y", side="right"),
+                    bargap=0.25,
+                    height=600,
+                    title_x=0.5
+                )
 
+                st.plotly_chart(fig, use_container_width=True)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+                # 📥 تحميل النتائج Excel
+                pareto_buffer = io.BytesIO()
+                with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
+                    counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
+                st.download_button(
+                    bi_text("📥 تنزيل جدول Pareto (Excel)", "📥 Download Pareto Table (Excel)"),
+                    data=pareto_buffer.getvalue(),
+                    file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                )
 
 
 
