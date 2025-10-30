@@ -900,7 +900,7 @@ with tab_services:
 # 💬 PARETO TAB — تحليل الملاحظات (ثنائي اللغة)
 # =========================================================
 with tab_pareto:
-    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
+    st.subheader(bi_text("💬 تحليل المزعجات (Pareto)", "Customer Comments )"))
     st.info(bi_text(
         "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
@@ -996,7 +996,7 @@ with tab_pareto:
         )
 
         fig.update_layout(
-            title=bi_text("تحليل Pareto — المحاور الرئيسية", "Pareto Analysis — Main Themes"),
+            title=bi_text("تحليل باريتو — المحاور الرئيسية", "Pareto Analysis — Main Themes"),
             yaxis=dict(title=bi_text("عدد الملاحظات", "Number of Comments")),
             yaxis2=dict(
                 title=bi_text("النسبة التراكمية (%)", "Cumulative Percentage (%)"),
@@ -1045,6 +1045,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
