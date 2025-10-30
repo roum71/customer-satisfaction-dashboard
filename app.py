@@ -272,14 +272,8 @@ with tab_data:
         df_final.to_excel(writer, index=False)
     st.download_button("📥 تنزيل البيانات", buffer.getvalue(), file_name=f"Filtered_Data_{ts}.xlsx")
 
-
-
-
 # =========================================================
-# 📈 SAMPLE TAB
-# =========================================================
-# =========================================================
-# 📈 SAMPLE TAB — توزيع العينة (ثنائي اللغة كامل)
+# 📈 SAMPLE TAB — توزيع العينة (ثنائي اللغة مع عناوين ديناميكية)
 # =========================================================
 with tab_sample:
     st.subheader(bi_text("📈 توزيع العينة", "Sample Distribution"))
@@ -290,23 +284,19 @@ with tab_sample:
 
     # 🟩 نوع الرسم البياني
     chart_type = st.radio(
-        bi_text("📊 نوع الرسم البياني / Chart Type", "📊 نوع الرسم البياني / Chart Type"),
-        [
-            bi_text("مخطط دائري (Pie Chart)", "Pie Chart"),
-            bi_text("مخطط أعمدة (Bar Chart)", "Bar Chart"),
-            bi_text("شبكي / مصفوفة (Grid / Matrix)", "Grid / Matrix")
-        ],
+        bi_text("📊 نوع الرسم البياني", "📊 Chart Type"),
+        [bi_text("مخطط دائري (Pie Chart)", "Pie Chart"),
+         bi_text("مخطط أعمدة (Bar Chart)", "Bar Chart"),
+         bi_text("شبكي / مصفوفة (Grid / Matrix)", "Grid / Matrix")],
         index=1,
         horizontal=True
     )
 
     # 🟨 طريقة العرض
     value_type = st.radio(
-        bi_text("📏 طريقة العرض / Display Mode", "📏 طريقة العرض / Display Mode"),
-        [
-            bi_text("الأعداد (Numbers)", "Numbers"),
-            bi_text("النسب المئوية (Percentages)", "Percentages")
-        ],
+        bi_text("📏 طريقة العرض", "📏 Display Mode"),
+        [bi_text("الأعداد (Numbers)", "Numbers"),
+         bi_text("النسب المئوية (Percentages)", "Percentages")],
         index=1,
         horizontal=True
     )
@@ -318,7 +308,39 @@ with tab_sample:
         counts["Percentage"] = counts["Count"] / total * 100
 
         value_col = "Count" if "Numbers" in value_type else "Percentage"
-        title = f"{bi_text(col, col)} — {total:,} {bi_text('ردود', 'Responses')}"
+
+        # 🏷️ اختيار التسمية بناءً على اللغة
+        if lang == "العربية":
+            if col.upper() == "GENDER":
+                col_label = "النوع"
+            elif col.upper() == "NATIONALITY":
+                col_label = "الجنسية"
+            elif "ACADEMIC" in col.upper():
+                col_label = "المستوى الأكاديمي"
+            elif "SERVICE" in col.upper():
+                col_label = "الخدمة"
+            else:
+                col_label = col
+            st.markdown(f"### {col_label} — {total:,} ردود")
+            graph_title = f"توزيع {col_label}"
+            x_title = "الفئة"
+            y_title = "النسبة المئوية (%)" if value_col == "Percentage" else "العدد"
+
+        else:  # English
+            if col.upper() == "GENDER":
+                col_label = "Gender"
+            elif col.upper() == "NATIONALITY":
+                col_label = "Nationality"
+            elif "ACADEMIC" in col.upper():
+                col_label = "Academic Level"
+            elif "SERVICE" in col.upper():
+                col_label = "Service"
+            else:
+                col_label = col
+            st.markdown(f"### {col_label} — {total:,} Responses")
+            graph_title = f"Distribution of {col_label}"
+            x_title = "Category"
+            y_title = "Percentage (%)" if value_col == "Percentage" else "Count"
 
         # 🥧 Pie Chart
         if "Pie" in chart_type:
@@ -327,7 +349,7 @@ with tab_sample:
                 names=col,
                 values=value_col,
                 hole=0.3,
-                title=title,
+                title=graph_title,
                 color_discrete_sequence=PASTEL
             )
             fig.update_traces(
@@ -335,6 +357,7 @@ with tab_sample:
                 textposition="inside",
                 textfont_size=14
             )
+            fig.update_layout(title_x=0.5, title_font=dict(size=20))
             st.plotly_chart(fig, use_container_width=True)
 
         # 📊 Bar Chart
@@ -346,35 +369,34 @@ with tab_sample:
                 text=value_col,
                 color=col,
                 color_discrete_sequence=PASTEL,
-                title=title
+                title=graph_title
             )
             fig.update_traces(
                 texttemplate="%{text:.1f}" if value_col == "Percentage" else "%{text}",
                 textposition="outside"
             )
-
             fig.update_layout(
-                xaxis_title=bi_text("المتغير / Variable", "Variable"),
-                yaxis_title=bi_text("النسبة المئوية (%) / Percentage", "Percentage (%)")
-                if value_col == "Percentage"
-                else bi_text("العدد / Count", "Count"),
+                xaxis_title=x_title,
+                yaxis_title=y_title,
+                title_x=0.5,
+                title_font=dict(size=20)
             )
-
             st.plotly_chart(fig, use_container_width=True)
 
         # 🧩 Grid / Matrix View
         else:
-            st.write(f"### 🧩 {bi_text('عرض شبكي —', 'Grid View —')} {col}")
+            st.write(f"### 🧩 {bi_text('عرض شبكي —', 'Grid View —')} {col_label}")
             matrix = counts[[col, "Count", "Percentage"]].copy()
             matrix.columns = [
-                bi_text("القيمة / Value", "Value"),
-                bi_text("العدد / Count", "Count"),
-                bi_text("النسبة المئوية / Percentage", "Percentage")
+                bi_text("القيمة", "Value"),
+                bi_text("العدد", "Count"),
+                bi_text("النسبة المئوية", "Percentage")
             ]
             st.dataframe(
-                matrix.style.format({bi_text("النسبة المئوية / Percentage", "Percentage"): "{:.1f}%"}),
+                matrix.style.format({bi_text("النسبة المئوية", "Percentage"): "{:.1f}%"}),
                 use_container_width=True
             )
+
     
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
@@ -737,6 +759,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
