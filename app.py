@@ -273,7 +273,7 @@ tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.ta
 # 📁 DATA TAB — Multi-language headers
 # =========================================================
 with tab_data:
-    st.subheader("📁 البيانات الخام /Raw Data")
+#    st.subheader("📁 البيانات الخام /Raw Data")
 
     questions_map_ar, questions_map_en = {}, {}
     if "QUESTIONS" in lookup_catalog:
@@ -596,11 +596,11 @@ with tab_kpis:
 # 🧩 DIMENSIONS TAB — تحليل الأبعاد (تنسيق + ثنائية اللغة)
 # =========================================================
 with tab_dimensions:
-    st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
-    st.info(bi_text(
-        "تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين.",
-        "Analysis of average dimensions based on customer surveys."
-    ))
+#   st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
+#   st.info(bi_text(
+#        "تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين.",
+#       "Analysis of average dimensions based on customer surveys."
+#    ))
 
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
 
@@ -1025,6 +1025,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
