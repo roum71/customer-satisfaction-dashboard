@@ -350,7 +350,7 @@ with tab_kpis:
     nps, prom, passv, detr = detect_nps(df)
 
     c1, c2, c3 = st.columns(3)
-    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["CSAT السعادة", "Value القيمة ", "NPS صافي نقاط الترويج"]):
+    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["Overall Happiness السعادة", "Value القيمة ", "NPS صافي نقاط الترويج"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
             value=val if not np.isnan(val) else 0,
@@ -373,13 +373,9 @@ with tab_kpis:
 # 🧩 DIMENSIONS TAB
 # =========================================================
 
-# =========================================================
-# 🧩 DIMENSIONS TAB
-# =========================================================
 with tab_dimensions:
-    st.subheader("🧩 تحليل الأبعاد")
+    st.subheader("🧩 Dimension Analysis تحليل الأبعاد")
 
-    # البحث عن كل الأعمدة الفرعية مثل Dim1.1, Dim2.3, ...
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
 
     if not all_dim_cols:
@@ -387,12 +383,11 @@ with tab_dimensions:
     else:
         # حساب المتوسط لكل بعد رئيسي (Dim1 إلى Dim5)
         main_dims = {}
-        for i in range(1, 6):  # يشمل Dim1 حتى Dim5
+        for i in range(1, 6):
             sub_cols = [c for c in df.columns if c.startswith(f"Dim{i}.")]
             if sub_cols:
                 main_dims[f"Dim{i}"] = df[sub_cols].mean(axis=1)
 
-        # إضافة الأعمدة الجديدة إلى DataFrame
         for k, v in main_dims.items():
             df[k] = v
 
@@ -417,20 +412,53 @@ with tab_dimensions:
                                     qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
-        # رسم الأعمدة
+        # ترتيب الأبعاد حسب Dim1 إلى Dim5
+        order = [f"Dim{i}" for i in range(1, 6)]
+        dims["Dimension"] = pd.Categorical(dims["Dimension"], categories=order, ordered=True)
+        dims = dims.sort_values("Dimension")
+
+        # تحديد اللون بناءً على النسبة
+        def get_color(score):
+            if score < 70:
+                return "#FF6B6B"  # أحمر
+            elif score < 80:
+                return "#FFD93D"  # أصفر
+            elif score < 90:
+                return "#6BCB77"  # أخضر
+            else:
+                return "#4D96FF"  # أزرق
+
+        dims["Color"] = dims["Score"].apply(get_color)
+
+        # رسم الأعمدة حسب الترتيب واللون
         fig = px.bar(
-            dims.sort_values("Score", ascending=False),
+            dims,
             x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
-            y="Score", text="Score",
-            color_discrete_sequence=PASTEL,
+            y="Score",
+            text="Score",
+            color="Color",
+            color_discrete_map="identity",
             title="تحليل متوسط الأبعاد"
         )
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
-        fig.update_layout(yaxis_title="النسبة المئوية (%)")
+        fig.update_layout(
+            yaxis_title="النسبة المئوية (%)",
+            showlegend=False
+        )
 
         st.plotly_chart(fig, use_container_width=True)
-        st.dataframe(dims, use_container_width=True)
 
+        # 🔹 إضافة وسيلة الإيضاح (الشرح)
+        st.markdown("""
+        **🗂️ Color Legend | وسيلة الإيضاح:**
+        - 🔴 **أقل من 70٪** — منخفض / ضعيف الأداء  
+        - 🟡 **من 70٪ إلى أقل من 80٪** — متوسط  
+        - 🟢 **من 80٪ إلى أقل من 90٪** — جيد  
+        - 🔵 **90٪ فأكثر** — ممتاز  
+        """, unsafe_allow_html=True)
+
+        # عرض الجدول
+        st.dataframe(dims, use_container_width=True)
 # =========================================================
 # 📋 SERVICES TAB
 # =========================================================
@@ -606,6 +634,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
