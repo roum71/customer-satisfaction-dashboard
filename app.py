@@ -870,6 +870,13 @@ with tab_services:
                 )
 
                 fig.update_layout(
+                       title=dict(
+                    text=chart_title,
+                   x=0.5,  # 📍 العنوان في المنتصف
+                    xanchor="center",
+                  font=dict(size=18, family="Cairo, sans-serif", color="#333")
+                    ),
+                    
                     yaxis_title=bi_text("النسبة المئوية (%)", "Percentage (%)"),
                     xaxis_title=bi_text("الخدمة / Service", "Service"),
                     legend_title=bi_text("المؤشر", "Indicator"),
@@ -1031,6 +1038,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
