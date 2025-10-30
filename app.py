@@ -669,13 +669,13 @@ with tab_services:
 # 💬 PARETO TAB
 # =========================================================
 with tab_pareto:
-st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
-    st.info(bi_text("تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا", 
-                    "Qualitative analysis of comments to identify top dissatisfaction reasons."))
+    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
+    st.info(bi_text(
+        "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
+        "Qualitative analysis of comments to identify top dissatisfaction reasons."
+    ))
 
-                    
-                    
-    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","unsat","reason"])]
+    text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
@@ -736,6 +736,7 @@ st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Co
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
