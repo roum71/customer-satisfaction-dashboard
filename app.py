@@ -55,7 +55,7 @@ st.set_page_config(page_title="لوحة تجربة المتعاملين — رأ
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي
+# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (نسخة محسّنة)
 # =========================================================
 from PIL import Image
 
@@ -63,23 +63,25 @@ logo_path = "assets/logo_gsec_full.png"  # المسار إلى الشعار دا
 
 try:
     logo = Image.open(logo_path)
-    col1, col2 = st.columns([1, 6])  # تقسيم الصفحة لعمودين (الشعار + العنوان)
+    
+    # عرض الشعار والعنوان بمحاذاة وسط الصفحة
+    col1, col2, col3 = st.columns([1.5, 4, 1.5])
     with col1:
-        st.image(logo, width=260)
+        st.image(logo, width=600)  # زيادة حجم الشعار
     with col2:
         st.markdown("""
-            <div style='text-align:center; margin-top:20px;'>
-                <h1 style='font-size:32px; color:#b30000; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
-                <h2 style='font-size:20px; color:#444;'>Customer Experience Report 2025</h2>
+            <div style='text-align:center; margin-top:25px;'>
+                <h1 style='font-size:40px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
+                <h2 style='font-size:24px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
             </div>
         """, unsafe_allow_html=True)
+    with col3:
+        st.write("")  # عمود توازن للمحاذاة
+    
 except Exception as e:
     st.warning(f"⚠️ لم يتم العثور على الشعار: {e}")
 
-# خط فاصل جميل بين الرأس وبداية المحتوى
 st.markdown("---")
-
-
 
 
 # =========================================================
@@ -718,6 +720,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
