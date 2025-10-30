@@ -133,10 +133,6 @@ if lookup_path.exists():
         tbl.columns = [c.strip().upper() for c in tbl.columns]
         lookup_catalog[sheet.upper()] = tbl
 
-# ✅ Debug: check data columns and lookup sheets
-st.write("🔍 Data columns:", df.columns.tolist())
-st.write("📘 Lookup sheets:", list(lookup_catalog.keys()))
-
 
 # =========================================================
 # UTILS
@@ -694,6 +690,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
