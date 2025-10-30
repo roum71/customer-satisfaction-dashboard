@@ -461,17 +461,17 @@ with tab_dimensions:
         st.dataframe(dims, use_container_width=True)
 
 # =========================================================
-# 📋 SERVICES TAB — تحليل الخدمات (CSAT = Dim6.1, CES = Dim6.2, NPS = existing field)
+# 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
 # =========================================================
 with tab_services:
-    st.subheader("📋 تحليل الخدمات (مقارنة CSAT و CES و NPS لكل خدمة)")
+    st.subheader("📋 تحليل الخدمات (مؤشرات السعادة والقيمة وصافي نقاط الترويج)")
 
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
     else:
         df_services = df.copy()
 
-        # 🔍 تحديد الأعمدة الخاصة بـ CSAT و CES و NPS
+        # 🔍 تحديد الأعمدة الخاصة بالسعادة (CSAT) والقيمة (CES) وNPS
         csat_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.1")), None)
         ces_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.2")), None)
         nps_col = next((c for c in df_services.columns if c.strip().upper() == "NPS"), None)
@@ -480,8 +480,8 @@ with tab_services:
             st.warning("⚠️ لم يتم العثور على الأعمدة Dim6.1 أو Dim6.2 في البيانات.")
         else:
             # 🧮 تحويل القيم من 1–5 إلى 0–100
-            df_services["CSAT (٪)"] = (df_services[csat_col] - 1) * 25
-            df_services["CES (٪)"] = (df_services[ces_col] - 1) * 25
+            df_services["Happiness / سعادة (٪)"] = (df_services[csat_col] - 1) * 25
+            df_services["Value / قيمة (٪)"] = (df_services[ces_col] - 1) * 25
 
             # 🧮 حساب NPS من العمود الموجود (0–10 مقياس)
             if nps_col:
@@ -497,23 +497,23 @@ with tab_services:
                     total = len(valid)
                     nps_value = ((promoters - detractors) / total) * 100
                     nps_summary.append((svc, nps_value))
-                nps_df = pd.DataFrame(nps_summary, columns=["SERVICE", "NPS (٪)"])
+                nps_df = pd.DataFrame(nps_summary, columns=["SERVICE", "NPS / صافي نقاط الترويج (٪)"])
             else:
-                nps_df = pd.DataFrame(columns=["SERVICE", "NPS (٪)"])
+                nps_df = pd.DataFrame(columns=["SERVICE", "NPS / صافي نقاط الترويج (٪)"])
 
             # 🧾 حساب المتوسط وعدد الردود لكل خدمة
             summary = (
                 df_services.groupby("SERVICE")
                 .agg({
-                    "CSAT (٪)": "mean",
-                    "CES (٪)": "mean",
+                    "Happiness / سعادة (٪)": "mean",
+                    "Value / قيمة (٪)": "mean",
                     csat_col: "count"
                 })
                 .reset_index()
                 .rename(columns={csat_col: "عدد الردود"})
             )
 
-            # دمج نتائج NPS مع CSAT/CES
+            # دمج نتائج NPS مع بقية المؤشرات
             summary = summary.merge(nps_df, on="SERVICE", how="left")
 
             # 🌐 استبدال أسماء الخدمات بالعربية / الإنجليزية من lookup
@@ -533,18 +533,21 @@ with tab_services:
             # 🚫 عرض فقط الخدمات التي بها 30 ردًا أو أكثر
             summary = summary[summary["عدد الردود"] >= 30]
 
-            # ✅ تلوين الخلايا في الجدول (CSAT و CES فقط)
+            # 🧭 ترتيب الجدول تنازليًا حسب السعادة
+            summary = summary.sort_values("Happiness / سعادة (٪)", ascending=False)
+
+            # ✅ تلوين الخلايا في الجدول (السعادة والقيمة فقط)
             def color_cells(val):
                 try:
                     v = float(val)
                     if v < 70:
-                        color = "#FF6B6B"  # Red
+                        color = "#FF6B6B"  # أحمر
                     elif v < 80:
-                        color = "#FFD93D"  # Yellow
+                        color = "#FFD93D"  # أصفر
                     elif v < 90:
-                        color = "#6BCB77"  # Green
+                        color = "#6BCB77"  # أخضر
                     else:
-                        color = "#4D96FF"  # Blue
+                        color = "#4D96FF"  # أزرق
                     return f"background-color:{color};color:black"
                 except:
                     return ""
@@ -553,20 +556,27 @@ with tab_services:
             styled_table = (
                 summary.style
                 .format({
-                    "CSAT (٪)": "{:.1f}%",
-                    "CES (٪)": "{:.1f}%",
-                    "NPS (٪)": "{:.1f}%",
+                    "Happiness / سعادة (٪)": "{:.1f}%",
+                    "Value / قيمة (٪)": "{:.1f}%",
+                    "NPS / صافي نقاط الترويج (٪)": "{:.1f}%",
                     "عدد الردود": "{:,.0f}"
                 })
-                .applymap(color_cells, subset=["CSAT (٪)", "CES (٪)"])
+                .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])  # ✅ فقط هذين العمودين
             )
             st.dataframe(styled_table, use_container_width=True)
 
-            # 🎨 الرسم البياني كما هو
+            # 🛈 ملاحظة توضيحية باللغتين
+            st.markdown("""
+            **ℹ️ ملاحظة / Note:**  
+            يتم عرض الخدمات التي تحتوي على **30 ردًا أو أكثر فقط** لضمان دقة النتائج.  
+            Only **services with 30 or more responses** are shown to ensure result accuracy.
+            """)
+
+            # 🎨 الرسم البياني — فقط للسعادة والقيمة
             if not summary.empty:
                 df_melted = summary.melt(
                     id_vars=["الخدمة / Service", "عدد الردود"],
-                    value_vars=["CSAT (٪)", "CES (٪)", "NPS (٪)"],
+                    value_vars=["Happiness / سعادة (٪)", "Value / قيمة (٪)"],
                     var_name="المؤشر",
                     value_name="القيمة"
                 )
@@ -578,7 +588,7 @@ with tab_services:
                     color="المؤشر",
                     barmode="group",
                     text="القيمة",
-                    title="📊 مقارنة مؤشرات CSAT و CES و NPS حسب الخدمة",
+                    title="📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة",
                     color_discrete_sequence=PASTEL
                 )
 
@@ -602,13 +612,12 @@ with tab_services:
                     yaxis_title="النسبة المئوية (%)",
                     xaxis_title="الخدمة / Service",
                     legend_title="المؤشر",
-                    yaxis=dict(range=[-100, 100])
+                    yaxis=dict(range=[0, 100])
                 )
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
                 st.info("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.")
-
 
 # =========================================================
 # 💬 PARETO TAB
@@ -676,6 +685,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
