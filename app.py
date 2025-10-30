@@ -659,16 +659,21 @@ with tab_dimensions:
 
         dims["Color"] = dims["Score"].apply(get_color)
 
-        # رسم الأعمدة حسب الترتيب واللون
-        fig = px.bar(
-            dims,
-            x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
-            y="Score",
-            text="Score",
-            color="Color",
-            color_discrete_map="identity",
-            title="تحليل متوسط الأبعاد"
-        )
+       # 🧭 الحفاظ على ترتيب الأبعاد حسب الجدول (Dim1 → Dim5)
+      dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
+      dims = dims.sort_values("Order")
+
+     # 🎨 رسم الأعمدة بالترتيب الصحيح
+     fig = px.bar(
+     dims,
+    x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+    y="Score", text="Score",
+    color_discrete_sequence=PASTEL,
+    title=bi_text("تحليل متوسط الأبعاد", "Average Dimensions Analysis"),
+      )
+
+
+        
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig.update_layout(
             yaxis_title="النسبة المئوية (%)",
@@ -1002,6 +1007,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
