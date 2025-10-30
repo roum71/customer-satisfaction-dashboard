@@ -223,10 +223,14 @@ df = df_filtered.copy()
 # =========================================================
 # 📈 TABS
 # =========================================================
-tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs(
-    ["📁 Data البيانات", "📈 توزيع العينة Sample Distribution", "📊 المؤشرات KPIs", "🧩 الأبعاد Diemnsions", "📋 Services الخدمات", "💬 Pain Points المزعجات "]
-)
-
+tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.tabs([
+    bi_text("📁 البيانات", "Data"),
+    bi_text("📈 توزيع العينة", "Sample Distribution"),
+    bi_text("📊 المؤشرات", "KPIs"),
+    bi_text("🧩 الأبعاد", "Dimensions"),
+    bi_text("📋 الخدمات", "Services"),
+    bi_text("💬مزعجات", "Pain Points")
+])
 
 # =========================================================
 # 📁 DATA TAB — Multi-language headers
@@ -270,8 +274,14 @@ with tab_data:
 # 📈 SAMPLE TAB — Pie يتبع اختيار المستخدم (نسب أو أعداد)
 # =========================================================
 with tab_sample:
-    st.subheader("📈 توزيع العينة Sample Distribution")
-#   st.info("✅ Pie يعرض النسبة أو العدد حسب الاختيار")
+    st.subheader(bi_text("📈 توزيع العينة", "Sample Distribution"))
+    total = len(df)
+    st.markdown(bi_text(f"### 🧮 إجمالي الردود: {total:,}", f"### 🧮 Total Responses: {total:,}")
+
+
+
+
+
 
     total = len(df)
     st.markdown(f"### 🧮 Total Responses إجمالي الردود: {total:,}")
@@ -368,8 +378,10 @@ with tab_sample:
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
-with tab_kpis:
-    st.subheader("📊 السعادة / القيمة/ صافي نقاطي الترويج (CSAT / CES / NPS)")
+st.subheader(bi_text("📊 مؤشرات الأداء", "Performance Indicators (KPIs)"))
+    st.info(bi_text("سيتم عرض مؤشرات السعادة والقيمة وصافي نقاط الترويج هنا", 
+                    "Happiness, Value, and NPS indicators will be displayed here."))
+
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
     nps, prom, passv, detr = detect_nps(df)
@@ -399,7 +411,9 @@ with tab_kpis:
 # =========================================================
 
 with tab_dimensions:
-    st.subheader("🧩 Dimension Analysis تحليل الأبعاد")
+    st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
+    st.info(bi_text("تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين", 
+                    "Dimension averages based on customer feedback will appear here."))
 
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
 
@@ -489,8 +503,10 @@ with tab_dimensions:
 # 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
 # =========================================================
 with tab_services:
-    st.subheader("📋 تحليل الخدمات (مؤشرات السعادة والقيمة وصافي نقاط الترويج)")
-
+    st.subheader(bi_text("📋 تحليل الخدمات", "Service Analysis"))
+    st.info(bi_text("مقارنة مستويات السعادة والقيمة حسب الخدمة", 
+                    "Compare Happiness and Value levels per service."))
+                    
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
     else:
@@ -647,8 +663,10 @@ with tab_services:
 # =========================================================
 # 💬 PARETO TAB
 # =========================================================
-with tab_pareto:
-    st.subheader("💬 تحليل الملاحظات (Pareto)")
+st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
+    st.info(bi_text("تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا", 
+                    "Qualitative analysis of comments to identify top dissatisfaction reasons."))
+                    
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment","ملاحظ","unsat","reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
@@ -710,6 +728,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
