@@ -54,24 +54,6 @@ USER_KEYS = {
 st.set_page_config(page_title="لوحة تجربة المتعاملين — رأس الخيمة", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
-# =========================================================
-# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (Full Width + GitHub Link)
-# =========================================================
-
-# 🔗 ضع هنا رابط الصورة من GitHub (raw)
-logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/logo%20gsec%20full.png"
-
-st.markdown(f"""
-    <div style="text-align:center; margin-top:-40px;">
-        <img src="{logo_url}" alt="RAK Executive Council Logo" style="width:950px; max-width:95%; height:auto;">
-    </div>
-    <div style='text-align:center; margin-top:10px;'>
-        <h1 style='font-size:46px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
-        <h2 style='font-size:26px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
-        <p style='color:#555; font-size:18px; margin-top:10px;'>المجلس التنفيذي – حكومة رأس الخيمة<br>The Executive Council – Government of Ras Al Khaimah</p>
-    </div>
-    <hr style="margin-top:20px; margin-bottom:10px;">
-""", unsafe_allow_html=True)
 
 
 # =========================================================
@@ -595,30 +577,28 @@ with tab_kpis:
         """
     st.markdown(legend_html, unsafe_allow_html=True)
 # =========================================================
-# 🧩 DIMENSIONS TAB
+# 🧩 DIMENSIONS TAB — تحليل الأبعاد (ثنائي اللغة بالكامل)
 # =========================================================
 with tab_dimensions:
     st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
-    st.info(bi_text("تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين", 
-                    "Dimension averages based on customer feedback will appear here."))
+    st.info(bi_text(
+        "تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين.",
+        "Analysis of average dimensions based on customer surveys."
+    ))
 
-    # 🔍 استخراج أعمدة الأبعاد الفرعية مثل Dim1.1, Dim2.3 ...
-    all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
+    # 🔍 تحديد أعمدة الأبعاد الفرعية (Dim1.1, Dim2.3 ...)
+    all_dim_cols = [c for c in df.columns if re.match(r"Dim\\d+\\.", c.strip())]
 
     if not all_dim_cols:
-        st.warning("⚠️ لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1, Dim2.3 ...).")
+        st.warning("⚠️ لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1 أو Dim2.3).")
     else:
-        # 🧮 حساب المتوسط لكل بعد رئيسي (Dim1 إلى Dim5)
-        main_dims = {}
+        # 🧮 حساب المتوسط لكل بعد رئيسي
         for i in range(1, 6):
             sub_cols = [c for c in df.columns if c.startswith(f"Dim{i}.")]
             if sub_cols:
-                main_dims[f"Dim{i}"] = df[sub_cols].mean(axis=1)
+                df[f"Dim{i}"] = df[sub_cols].mean(axis=1)
 
-        for k, v in main_dims.items():
-            df[k] = v
-
-        # 📊 إعداد ملخص القيم (متوسط كل بعد)
+        # 🧾 إعداد الملخص
         summary = []
         for dim in [f"Dim{i}" for i in range(1, 6)]:
             if dim in df.columns:
@@ -626,7 +606,7 @@ with tab_dimensions:
                 summary.append({"Dimension": dim, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
-        # 🌐 ربط أسماء الأبعاد بالعربية / الإنجليزية من ملف الأسئلة
+        # 🌐 إضافة أسماء الأبعاد من جدول الأسئلة (حسب اللغة)
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -635,19 +615,14 @@ with tab_dimensions:
             en_col = next((c for c in qtbl.columns if "ENGLISH" in c), None)
             if code_col and ar_col and en_col:
                 qtbl["CODE_NORM"] = qtbl[code_col].astype(str).str.strip()
-                name_map = dict(zip(qtbl["CODE_NORM"],
-                                    qtbl[ar_col if lang == "العربية" else en_col]))
+                name_map = dict(zip(qtbl["CODE_NORM"], qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
-            else:
-                dims["Dimension_name"] = dims["Dimension"]
-        else:
-            dims["Dimension_name"] = dims["Dimension"]
 
-        # 🔢 الحفاظ على الترتيب الأصلي (Dim1 → Dim5)
-        dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
+        # 🧭 الحفاظ على الترتيب Dim1 → Dim5
+        dims["Order"] = dims["Dimension"].str.extract(r"(\\d+)").astype(float)
         dims = dims.sort_values("Order")
 
-        # 🎨 تحديد اللون بناءً على النسبة
+        # 🎨 تحديد الألوان حسب الأداء
         def get_color(score):
             if score < 70:
                 return "#FF6B6B"  # أحمر
@@ -660,10 +635,12 @@ with tab_dimensions:
 
         dims["Color"] = dims["Score"].apply(get_color)
 
-        # 🧭 تثبيت ترتيب الأعمدة كما هو في الجدول
-        category_order = dims["Dimension_name"].tolist()
+        # 🎯 العناوين ثنائية اللغة
+        chart_title = "📊 تحليل متوسط الأبعاد / Average Dimensions Analysis"
+        x_axis_title = "الأبعاد / Dimensions"
+        y_axis_title = "النسبة المئوية (%) / Percentage (%)"
 
-        # 🎨 إنشاء الرسم البياني بالترتيب الصحيح
+        # 📊 الرسم البياني مع العناوين الثنائية في المنتصف
         fig = px.bar(
             dims,
             x="Dimension_name",
@@ -671,45 +648,57 @@ with tab_dimensions:
             text="Score",
             color="Color",
             color_discrete_map="identity",
-            category_orders={"Dimension_name": category_order},  # ✅ هنا المفتاح
-            title=bi_text("تحليل متوسط الأبعاد", "Average Dimensions Analysis"),
+            title=chart_title
         )
 
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+
         fig.update_layout(
-            yaxis_title=bi_text("النسبة المئوية (%)", "Percentage (%)"),
-            xaxis_title=bi_text("الأبعاد", "Dimensions"),
+            title=dict(
+                text=chart_title,
+                x=0.5,
+                xanchor="center",
+                font=dict(size=18, family="Cairo, sans-serif", color="#333")
+            ),
+            xaxis_title=x_axis_title,
+            yaxis_title=y_axis_title,
+            yaxis=dict(range=[0, 100]),
             showlegend=False,
-            height=500
+            margin=dict(t=70, b=20)
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # =========================================================
-        # 🗂️ وسيلة الإيضاح (Legend)
-        # =========================================================
-        if lang == "العربية":
-            st.markdown("""
-            **🗂️ وسيلة الإيضاح:**  
-            🔴 **أقل من 70٪** — منخفض / ضعيف الأداء  
-            🟡 **من 70٪ إلى أقل من 80٪** — متوسط  
-            🟢 **من 80٪ إلى أقل من 90٪** — جيد  
-            🔵 **90٪ فأكثر** — ممتاز  
-            """, unsafe_allow_html=True)
-        else:
-            st.markdown("""
-            **🗂️ Color Legend:**  
-            🔴 **Below 70%** — Low / Poor Performance  
-            🟡 **70% to <80%** — Average  
-            🟢 **80% to <90%** — Good  
-            🔵 **90% and above** — Excellent  
-            """, unsafe_allow_html=True)
+        # 🗂️ وسيلة الإيضاح باللغتين
+        st.markdown(bi_text(
+            """
+            **🗂️ وسيلة الإيضاح:**
+            - 🔴 أقل من 70٪ — ضعيف الأداء  
+            - 🟡 من 70٪ إلى أقل من 80٪ — متوسط  
+            - 🟢 من 80٪ إلى أقل من 90٪ — جيد  
+            - 🔵 90٪ فأكثر — ممتاز  
+            """,
+            """
+            **🗂️ Color Legend:**
+            - 🔴 Below 70% — Weak Performance  
+            - 🟡 70% to <80% — Average  
+            - 🟢 80% to <90% — Good  
+            - 🔵 90% and above — Excellent  
+            """
+        ), unsafe_allow_html=True)
 
-        # =========================================================
-        # 📋 عرض الجدول
-        # =========================================================
+        # 📋 عرض الجدول النهائي بثلاثة أعمدة فقط
+        display_cols = ["Dimension", "Dimension_name", "Score"]
+        dims = dims[display_cols]
+
+        # تغيير عناوين الجدول حسب اللغة
+        if lang == "العربية":
+            dims.columns = ["البعد", "اسم البعد", "النسبة (%)"]
+        else:
+            dims.columns = ["Dimension", "Dimension Name", "Score (%)"]
+
         st.dataframe(
-            dims[["Dimension", "Score", "Dimension_name", "Color"]],
+            dims.style.format({"النسبة (%)": "{:.1f}%", "Score (%)": "{:.1f}%"}),
             use_container_width=True
         )
 
@@ -1026,6 +1015,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
