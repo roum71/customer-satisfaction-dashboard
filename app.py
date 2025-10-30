@@ -703,7 +703,7 @@ with tab_dimensions:
 # =========================================================
 with tab_services:
     st.subheader(bi_text("📋 تحليل الخدمات", "Service Analysis"))
-    st.info(bi_text("مقارنة مستويات السعادة والقيمة حسب الخدمة", 
+    st.info(bi_text("مقارنة مستويات السعادة والقيمة حسب الخدمة",
                     "Compare Happiness and Value levels per service."))
 
     if "SERVICE" not in df.columns:
@@ -750,10 +750,10 @@ with tab_services:
                     csat_col: "count"
                 })
                 .reset_index()
-                .rename(columns={csat_col: "#Responses/عدد الردود"})
+                .rename(columns={csat_col: "عدد الردود"})
             )
 
-            # ✅ دمج نتائج NPS مع بقية المؤشرات
+            # دمج نتائج NPS مع بقية المؤشرات
             summary = summary.merge(nps_df, on="SERVICE", how="left")
 
             # 🌐 استبدال أسماء الخدمات بالعربية / الإنجليزية من lookup
@@ -771,7 +771,7 @@ with tab_services:
             summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
 
             # 🚫 عرض فقط الخدمات التي بها 30 ردًا أو أكثر
-            summary = summary[summary["#Responses/عدد الردود"] >= 30]
+            summary = summary[summary["عدد الردود"] >= 30]
 
             # 🧭 ترتيب الجدول تنازليًا حسب السعادة
             summary = summary.sort_values("Happiness / سعادة (٪)", ascending=False)
@@ -799,7 +799,7 @@ with tab_services:
                     "Happiness / سعادة (٪)": "{:.1f}%",
                     "Value / قيمة (٪)": "{:.1f}%",
                     "NPS / صافي نقاط الترويج (٪)": "{:.1f}%",
-                    "#Responses/عدد الردود": "{:,.0f}"
+                    "عدد الردود": "{:,.0f}"
                 })
                 .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])
             )
@@ -815,7 +815,7 @@ with tab_services:
             # 🎨 الرسم البياني — فقط للسعادة والقيمة
             if not summary.empty:
                 df_melted = summary.melt(
-                    id_vars=["الخدمة / Service", "#Responses/عدد الردود"],
+                    id_vars=["الخدمة / Service", "عدد الردود"],
                     value_vars=["Happiness / سعادة (٪)", "Value / قيمة (٪)"],
                     var_name="المؤشر",
                     value_name="القيمة"
@@ -828,7 +828,7 @@ with tab_services:
                     color="المؤشر",
                     barmode="group",
                     text="القيمة",
-                    title=bi_text("📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة", 
+                    title=bi_text("📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة",
                                   "📊 Comparison of Happiness and Value by Service"),
                     color_discrete_sequence=PASTEL
                 )
@@ -858,8 +858,8 @@ with tab_services:
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info(bi_text("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.", 
-                                "ℹ️ No services with 30 or more responses."))
+                st.info(bi_text("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.",
+                                "ℹ️ No services with 30 or more responses found."))
 
 
 # =========================================================
@@ -1011,6 +1011,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
