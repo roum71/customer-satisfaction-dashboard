@@ -717,14 +717,15 @@ with tab_dimensions:
             dims.style.format({"النسبة (%)": "{:.1f}%", "Score (%)": "{:.1f}%"}),
             use_container_width=True
         )
-
 # =========================================================
 # 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
 # =========================================================
 with tab_services:
     st.subheader(bi_text("📋 تحليل الخدمات", "Service Analysis"))
-    st.info(bi_text("مقارنة مستويات السعادة والقيمة حسب الخدمة",
-                    "Compare Happiness and Value levels per service."))
+    st.info(bi_text(
+        "مقارنة مستويات السعادة والقيمة وصافي نقاط الترويج حسب الخدمة.",
+        "Comparison of Happiness, Value, and NPS levels by service."
+    ))
 
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
@@ -734,7 +735,7 @@ with tab_services:
         # 🔍 تحديد الأعمدة الخاصة بالسعادة (CSAT) والقيمة (CES) وNPS
         csat_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.1")), None)
         ces_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.2")), None)
-        nps_col = next((c for c in df_services.columns if c.strip().upper() == "NPS"), None)
+        nps_col = next((c for c in df_services.columns if "NPS" in c.upper()), None)
 
         if not csat_col or not ces_col:
             st.warning("⚠️ لم يتم العثور على الأعمدة Dim6.1 أو Dim6.2 في البيانات.")
@@ -743,7 +744,7 @@ with tab_services:
             df_services["Happiness / سعادة (٪)"] = (df_services[csat_col] - 1) * 25
             df_services["Value / قيمة (٪)"] = (df_services[ces_col] - 1) * 25
 
-            # 🧮 حساب NPS من العمود الموجود (0–10 مقياس)
+            # 🧮 حساب NPS (إن وجد)
             if nps_col:
                 df_services["NPS_SCORE"] = pd.to_numeric(df_services[nps_col], errors="coerce")
                 nps_summary = []
@@ -765,15 +766,15 @@ with tab_services:
             summary = (
                 df_services.groupby("SERVICE")
                 .agg({
-                    "Overall Happiness/ السعادة عموما (٪)": "mean",
-                    "Value / قيمة مقابل جهد وتكلفة (٪)": "mean",
+                    "Happiness / سعادة (٪)": "mean",
+                    "Value / قيمة (٪)": "mean",
                     csat_col: "count"
                 })
                 .reset_index()
-                .rename(columns={csat_col: "Responses/الردود"})
+                .rename(columns={csat_col: "عدد الردود / Responses"})
             )
 
-            # دمج نتائج NPS مع بقية المؤشرات
+            # دمج نتائج NPS
             summary = summary.merge(nps_df, on="SERVICE", how="left")
 
             # 🌐 استبدال أسماء الخدمات بالعربية / الإنجليزية من lookup
@@ -791,7 +792,7 @@ with tab_services:
             summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
 
             # 🚫 عرض فقط الخدمات التي بها 30 ردًا أو أكثر
-            summary = summary[summary["عدد الردود"] >= 30]
+            summary = summary[summary["عدد الردود / Responses"] >= 30]
 
             # 🧭 ترتيب الجدول تنازليًا حسب السعادة
             summary = summary.sort_values("Happiness / سعادة (٪)", ascending=False)
@@ -812,44 +813,50 @@ with tab_services:
                 except:
                     return ""
 
-            # 📋 عرض الجدول مع التلوين
+            # 📋 عرض الجدول
             styled_table = (
                 summary.style
                 .format({
                     "Happiness / سعادة (٪)": "{:.1f}%",
                     "Value / قيمة (٪)": "{:.1f}%",
                     "NPS / صافي نقاط الترويج (٪)": "{:.1f}%",
-                    "عدد الردود": "{:,.0f}"
+                    "عدد الردود / Responses": "{:,.0f}"
                 })
                 .applymap(color_cells, subset=["Happiness / سعادة (٪)", "Value / قيمة (٪)"])
             )
             st.dataframe(styled_table, use_container_width=True)
 
             # 🛈 ملاحظة توضيحية باللغتين
-            st.markdown("""
-            **ℹ️ ملاحظة / Note:**  
-            يتم عرض الخدمات التي تحتوي على **30 ردًا أو أكثر فقط** لضمان دقة النتائج.  
-            Only **services with 30 or more responses** are shown to ensure result accuracy.
-            """)
+            st.markdown(bi_text(
+                """
+                **ℹ️ ملاحظة:**  
+                يتم عرض الخدمات التي تحتوي على **30 ردًا أو أكثر فقط** لضمان دقة النتائج.  
+                """,
+                """
+                **ℹ️ Note:**  
+                Only **services with 30 or more responses** are shown to ensure result accuracy.
+                """
+            ))
 
-            # 🎨 الرسم البياني — فقط للسعادة والقيمة
+            # 🎨 الرسم البياني (السعادة والقيمة فقط)
             if not summary.empty:
                 df_melted = summary.melt(
-                    id_vars=["الخدمة / Service", "عدد الردود"],
+                    id_vars=["الخدمة / Service", "عدد الردود / Responses"],
                     value_vars=["Happiness / سعادة (٪)", "Value / قيمة (٪)"],
-                    var_name="المؤشر",
-                    value_name="القيمة"
+                    var_name="المؤشر / Indicator",
+                    value_name="القيمة / Value"
                 )
+
+                chart_title = "📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة / Comparison of Happiness and Value by Service"
 
                 fig = px.bar(
                     df_melted,
                     x="الخدمة / Service",
-                    y="القيمة",
-                    color="المؤشر",
+                    y="القيمة / Value",
+                    color="المؤشر / Indicator",
                     barmode="group",
-                    text="القيمة",
-                    title=bi_text("📊 مقارنة مؤشري السعادة والقيمة حسب الخدمة",
-                                  "📊 Comparison of Happiness and Value by Service"),
+                    text="القيمة / Value",
+                    title=chart_title,
                     color_discrete_sequence=PASTEL
                 )
 
@@ -858,7 +865,7 @@ with tab_services:
                 # 🎯 خط مستهدف عند 80%
                 fig.add_shape(
                     type="line",
-                    x0=-0.5, x1=len(summary)-0.5,
+                    x0=-0.5, x1=len(summary) - 0.5,
                     y0=80, y1=80,
                     line=dict(color="green", dash="dash", width=2)
                 )
@@ -870,13 +877,12 @@ with tab_services:
                 )
 
                 fig.update_layout(
-                       title=dict(
-                    text=chart_title,
-                   x=0.5,  # 📍 العنوان في المنتصف
-                    xanchor="center",
-                  font=dict(size=18, family="Cairo, sans-serif", color="#333")
+                    title=dict(
+                        text=chart_title,
+                        x=0.5,  # 📍 العنوان في المنتصف
+                        xanchor="center",
+                        font=dict(size=18, family="Cairo, sans-serif", color="#333")
                     ),
-                    
                     yaxis_title=bi_text("النسبة المئوية (%)", "Percentage (%)"),
                     xaxis_title=bi_text("الخدمة / Service", "Service"),
                     legend_title=bi_text("المؤشر", "Indicator"),
@@ -885,9 +891,10 @@ with tab_services:
 
                 st.plotly_chart(fig, use_container_width=True)
             else:
-                st.info(bi_text("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.",
-                                "ℹ️ No services with 30 or more responses found."))
-
+                st.info(bi_text(
+                    "ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.",
+                    "ℹ️ No services with 30 or more responses found."
+                ))
 
 # =========================================================
 # 💬 PARETO TAB — تحليل الملاحظات (ثنائي اللغة)
@@ -1038,6 +1045,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
