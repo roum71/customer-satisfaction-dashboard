@@ -55,27 +55,24 @@ st.set_page_config(page_title="لوحة تجربة المتعاملين — رأ
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (Full Width Logo)
+# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (Full Width + GitHub Link)
 # =========================================================
-from PIL import Image
 
-logo_path = "assets/logo_gsec_full.png"
+# 🔗 ضع هنا رابط الصورة من GitHub (raw)
+logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/logo%20gsec%20full.png"
 
-try:
-    # استخدام HTML مباشر لعرض الصورة بحجم كبير جدًا
-    st.markdown(f"""
-        <div style="text-align:center; margin-top:-40px;">
-            <img src="{logo_path}" alt="RAK Executive Council Logo" style="width:900px; max-width:95%; height:auto;">
-        </div>
-        <div style='text-align:center; margin-top:10px;'>
-            <h1 style='font-size:46px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
-            <h2 style='font-size:26px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
-        </div>
-        <hr style="margin-top:20px; margin-bottom:10px;">
-    """, unsafe_allow_html=True)
+st.markdown(f"""
+    <div style="text-align:center; margin-top:-40px;">
+        <img src="{logo_url}" alt="RAK Executive Council Logo" style="width:950px; max-width:95%; height:auto;">
+    </div>
+    <div style='text-align:center; margin-top:10px;'>
+        <h1 style='font-size:46px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
+        <h2 style='font-size:26px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
+        <p style='color:#555; font-size:18px; margin-top:10px;'>المجلس التنفيذي – حكومة رأس الخيمة<br>The Executive Council – Government of Ras Al Khaimah</p>
+    </div>
+    <hr style="margin-top:20px; margin-bottom:10px;">
+""", unsafe_allow_html=True)
 
-except Exception as e:
-    st.warning(f"⚠️ لم يتم العثور على الشعار: {e}")
 
 # =========================================================
 # LANGUAGE
@@ -713,6 +710,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
