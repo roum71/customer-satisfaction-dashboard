@@ -66,9 +66,9 @@ st.markdown(f"""
         <img src="{logo_url}" alt="RAK Executive Council Logo" style="width:950px; max-width:95%; height:auto;">
     </div>
     <div style='text-align:center; margin-top:10px;'>
-        <h1 style='font-size:46px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
+        <h1 style='font-size:46px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعامل 2025</h1>
         <h2 style='font-size:26px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
-        <p style='color:#555; font-size:18px; margin-top:10px;'>المجلس التنفيذي – حكومة رأس الخيمة<br>The Executive Council – Government of Ras Al Khaimah</p>
+        <p style='color:#555; font-size:18px; margin-top:10px;'>الأمانة العامة للمجلس التنفيذي – حكومة رأس الخيمة<br>The General Secreriat of Executive Council – Government of Ras Al Khaimah</p>
     </div>
     <hr style="margin-top:20px; margin-bottom:10px;">
 """, unsafe_allow_html=True)
@@ -1045,6 +1045,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
