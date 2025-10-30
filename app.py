@@ -276,7 +276,7 @@ with tab_data:
 with tab_sample:
     st.subheader(bi_text("📈 توزيع العينة", "Sample Distribution"))
     total = len(df)
-    st.markdown(bi_text(f"### 🧮 إجمالي الردود: {total:,}", f"### 🧮 Total Responses: {total:,}")
+    st.markdown(bi_text(f"### 🧮 إجمالي الردود: {total:,}", f"### 🧮 Total Responses: {total:,}"))
 
 
 
@@ -728,6 +728,7 @@ st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Co
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
