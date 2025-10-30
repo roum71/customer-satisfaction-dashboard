@@ -59,7 +59,7 @@ PASTEL = px.colors.qualitative.Pastel
 # =========================================================
 
 # 🔗 ضع هنا رابط الصورة من GitHub (raw)
-logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/logo%20gsec%20full.png"
+logo_url = "https://raw.githubusercontent.com/roum71/rakcx2025/main/assets/logo_gsec_full.png"
 
 st.markdown(f"""
     <div style="text-align:center; margin-top:-40px;">
@@ -1045,6 +1045,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
