@@ -189,44 +189,75 @@ def detect_nps(df):
     nps = promoters_pct - detractors_pct
     return nps, promoters_pct, passives_pct, detractors_pct
 # =========================================================
-# FILTERS
+# 🎛️ FILTERS — الفلاتر (تتغير اللغة تلقائيًا)
 # =========================================================
-filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY","ACADEMIC"])]
+filter_cols = [c for c in df.columns if any(k in c.upper() for k in ["GENDER", "SERVICE", "SECTOR", "NATIONALITY", "ACADEMIC"])]
 filters = {}
-
 df_filtered = df.copy()
 
 with st.sidebar.expander("🎛️ الفلاتر / Filters"):
     for col in filter_cols:
         lookup_name = col.strip().upper()
         mapped = False
+
+        # 🔍 البحث عن جدول المطابقة في ملف Data_tables.xlsx
         if lookup_name in lookup_catalog:
             tbl = lookup_catalog[lookup_name]
             tbl.columns = [c.strip().upper() for c in tbl.columns]
-            
-            # Detect columns (case-insensitive)
+
+            # تحديد الأعمدة في جدول الـ Lookup
             ar_col = next((c for c in tbl.columns if "ARABIC" in c or "SERVICE2" in c), None)
             en_col = next((c for c in tbl.columns if "ENGLISH" in c), None)
             code_col = next((c for c in tbl.columns if "CODE" in c or lookup_name in c), None)
 
+            # تطبيق الترجمة على القيم
             if code_col and ((lang == "العربية" and ar_col) or (lang == "English" and en_col)):
                 name_col = ar_col if lang == "العربية" else en_col
                 name_map = dict(zip(tbl[code_col].astype(str), tbl[name_col].astype(str)))
                 df_filtered[col] = df_filtered[col].astype(str).map(name_map).fillna(df_filtered[col])
                 mapped = True
-        
+
         if not mapped:
             st.sidebar.warning(f"⚠️ Lookup not applied for {col}")
 
+        # 🏷️ تسمية الفلتر بالعربية أو الإنجليزية
+        if lang == "العربية":
+            if "GENDER" in col.upper():
+                label = "النوع"
+            elif "NATIONALITY" in col.upper():
+                label = "الجنسية"
+            elif "ACADEMIC" in col.upper():
+                label = "المستوى الأكاديمي"
+            elif "SERVICE" in col.upper():
+                label = "الخدمة"
+            elif "SECTOR" in col.upper():
+                label = "القطاع"
+            else:
+                label = col
+        else:
+            if "GENDER" in col.upper():
+                label = "Gender"
+            elif "NATIONALITY" in col.upper():
+                label = "Nationality"
+            elif "ACADEMIC" in col.upper():
+                label = "Academic Level"
+            elif "SERVICE" in col.upper():
+                label = "Service"
+            elif "SECTOR" in col.upper():
+                label = "Sector"
+            else:
+                label = col
+
+        # 🧩 إنشاء الفلتر
         options = df_filtered[col].dropna().unique().tolist()
-        selection = st.multiselect(col, options, default=options)
+        selection = st.multiselect(label, options, default=options)
         filters[col] = selection
 
+# 🔽 تطبيق الفلاتر على البيانات
 for col, values in filters.items():
     df_filtered = df_filtered[df_filtered[col].isin(values)]
 
 df = df_filtered.copy()
-
 
 # =========================================================
 # 📈 TABS
@@ -761,6 +792,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
