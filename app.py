@@ -55,6 +55,34 @@ st.set_page_config(page_title="لوحة تجربة المتعاملين — رأ
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
+# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي
+# =========================================================
+from PIL import Image
+
+logo_path = "assets/logo_gsec_full.png"  # المسار إلى الشعار داخل مجلد assets
+
+try:
+    logo = Image.open(logo_path)
+    col1, col2 = st.columns([1, 6])  # تقسيم الصفحة لعمودين (الشعار + العنوان)
+    with col1:
+        st.image(logo, width=260)
+    with col2:
+        st.markdown("""
+            <div style='text-align:center; margin-top:20px;'>
+                <h1 style='font-size:32px; color:#b30000; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
+                <h2 style='font-size:20px; color:#444;'>Customer Experience Report 2025</h2>
+            </div>
+        """, unsafe_allow_html=True)
+except Exception as e:
+    st.warning(f"⚠️ لم يتم العثور على الشعار: {e}")
+
+# خط فاصل جميل بين الرأس وبداية المحتوى
+st.markdown("---")
+
+
+
+
+# =========================================================
 # LANGUAGE
 # =========================================================
 lang = st.sidebar.radio("🌍 اللغة / Language", ["العربية", "English"], index=0)
@@ -690,6 +718,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
