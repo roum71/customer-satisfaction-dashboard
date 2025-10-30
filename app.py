@@ -459,23 +459,22 @@ with tab_dimensions:
 
         # عرض الجدول
         st.dataframe(dims, use_container_width=True)
+
 # =========================================================
-# 📋 SERVICES TAB
-# =========================================================
-# =========================================================
-# 📋 SERVICES TAB — تحليل الخدمات (CSAT = Dim6.1, CES = Dim6.2)
+# 📋 SERVICES TAB — تحليل الخدمات (CSAT = Dim6.1, CES = Dim6.2, NPS = existing field)
 # =========================================================
 with tab_services:
-    st.subheader("📋 تحليل الخدمات (مقارنة CSAT و CES لكل خدمة)")
+    st.subheader("📋 تحليل الخدمات (مقارنة CSAT و CES و NPS لكل خدمة)")
 
     if "SERVICE" not in df.columns:
         st.warning("⚠️ لا توجد بيانات خاصة بالخدمات.")
     else:
         df_services = df.copy()
 
-        # 🔍 تحديد الأعمدة الخاصة بـ CSAT و CES
+        # 🔍 تحديد الأعمدة الخاصة بـ CSAT و CES و NPS
         csat_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.1")), None)
         ces_col = next((c for c in df_services.columns if c.upper().startswith("DIM6.2")), None)
+        nps_col = next((c for c in df_services.columns if c.strip().upper() == "NPS"), None)
 
         if not csat_col or not ces_col:
             st.warning("⚠️ لم يتم العثور على الأعمدة Dim6.1 أو Dim6.2 في البيانات.")
@@ -483,6 +482,24 @@ with tab_services:
             # 🧮 تحويل القيم من 1–5 إلى 0–100
             df_services["CSAT (٪)"] = (df_services[csat_col] - 1) * 25
             df_services["CES (٪)"] = (df_services[ces_col] - 1) * 25
+
+            # 🧮 حساب NPS من العمود الموجود (0–10 مقياس)
+            if nps_col:
+                df_services["NPS_SCORE"] = pd.to_numeric(df_services[nps_col], errors="coerce")
+                nps_summary = []
+                for svc, subdf in df_services.groupby("SERVICE"):
+                    valid = subdf["NPS_SCORE"].dropna()
+                    if len(valid) == 0:
+                        nps_summary.append((svc, np.nan))
+                        continue
+                    promoters = (valid >= 9).sum()
+                    detractors = (valid <= 6).sum()
+                    total = len(valid)
+                    nps_value = ((promoters - detractors) / total) * 100
+                    nps_summary.append((svc, nps_value))
+                nps_df = pd.DataFrame(nps_summary, columns=["SERVICE", "NPS (٪)"])
+            else:
+                nps_df = pd.DataFrame(columns=["SERVICE", "NPS (٪)"])
 
             # 🧾 حساب المتوسط وعدد الردود لكل خدمة
             summary = (
@@ -495,6 +512,9 @@ with tab_services:
                 .reset_index()
                 .rename(columns={csat_col: "عدد الردود"})
             )
+
+            # دمج نتائج NPS مع CSAT/CES
+            summary = summary.merge(nps_df, on="SERVICE", how="left")
 
             # 🌐 استبدال أسماء الخدمات بالعربية / الإنجليزية من lookup
             if "SERVICE" in lookup_catalog:
@@ -510,62 +530,84 @@ with tab_services:
             # 🧹 تنسيق الأعمدة
             summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
 
-            # 📋 عرض الجدول
-            st.dataframe(
-                summary.style.format({
+            # 🚫 عرض فقط الخدمات التي بها 30 ردًا أو أكثر
+            summary = summary[summary["عدد الردود"] >= 30]
+
+            # ✅ تلوين الخلايا في الجدول (CSAT و CES فقط)
+            def color_cells(val):
+                try:
+                    v = float(val)
+                    if v < 70:
+                        color = "#FF6B6B"  # Red
+                    elif v < 80:
+                        color = "#FFD93D"  # Yellow
+                    elif v < 90:
+                        color = "#6BCB77"  # Green
+                    else:
+                        color = "#4D96FF"  # Blue
+                    return f"background-color:{color};color:black"
+                except:
+                    return ""
+
+            # 📋 عرض الجدول مع التلوين
+            styled_table = (
+                summary.style
+                .format({
                     "CSAT (٪)": "{:.1f}%",
                     "CES (٪)": "{:.1f}%",
+                    "NPS (٪)": "{:.1f}%",
                     "عدد الردود": "{:,.0f}"
-                }),
-                use_container_width=True
+                })
+                .applymap(color_cells, subset=["CSAT (٪)", "CES (٪)"])
             )
+            st.dataframe(styled_table, use_container_width=True)
 
-            # 🎨 رسم بياني موحد للمقارنة بين CSAT و CES
-            df_melted = summary.melt(
-                id_vars=["الخدمة / Service", "عدد الردود"],
-                value_vars=["CSAT (٪)", "CES (٪)"],
-                var_name="المؤشر",
-                value_name="القيمة"
-            )
+            # 🎨 الرسم البياني كما هو
+            if not summary.empty:
+                df_melted = summary.melt(
+                    id_vars=["الخدمة / Service", "عدد الردود"],
+                    value_vars=["CSAT (٪)", "CES (٪)", "NPS (٪)"],
+                    var_name="المؤشر",
+                    value_name="القيمة"
+                )
 
-            fig = px.bar(
-                df_melted,
-                x="الخدمة / Service",
-                y="القيمة",
-                color="المؤشر",
-                barmode="group",
-                text="القيمة",
-                title="📊 مقارنة مؤشري CSAT و CES حسب الخدمة",
-                color_discrete_sequence=PASTEL
-            )
+                fig = px.bar(
+                    df_melted,
+                    x="الخدمة / Service",
+                    y="القيمة",
+                    color="المؤشر",
+                    barmode="group",
+                    text="القيمة",
+                    title="📊 مقارنة مؤشرات CSAT و CES و NPS حسب الخدمة",
+                    color_discrete_sequence=PASTEL
+                )
 
-            # 🔢 عرض القيم على الأعمدة
-            fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
+                fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
-            # 🎯 خط مستهدف عند 80%
-            fig.add_shape(
-                type="line",
-                x0=-0.5, x1=len(summary)-0.5,
-                y0=80, y1=80,
-                line=dict(color="green", dash="dash", width=2)
-            )
-            fig.add_annotation(
-                xref="paper", x=1.02, y=80,
-                text="🎯 الحد المستهدف (80%)",
-                showarrow=False,
-                font=dict(color="green")
-            )
+                # 🎯 خط مستهدف عند 80%
+                fig.add_shape(
+                    type="line",
+                    x0=-0.5, x1=len(summary)-0.5,
+                    y0=80, y1=80,
+                    line=dict(color="green", dash="dash", width=2)
+                )
+                fig.add_annotation(
+                    xref="paper", x=1.02, y=80,
+                    text="🎯 الحد المستهدف (80%)",
+                    showarrow=False,
+                    font=dict(color="green")
+                )
 
-            fig.update_layout(
-                yaxis_title="النسبة المئوية (%)",
-                xaxis_title="الخدمة / Service",
-                legend_title="المؤشر",
-                yaxis=dict(range=[0, 100])
-            )
+                fig.update_layout(
+                    yaxis_title="النسبة المئوية (%)",
+                    xaxis_title="الخدمة / Service",
+                    legend_title="المؤشر",
+                    yaxis=dict(range=[-100, 100])
+                )
 
-            # 📈 عرض الرسم
-            st.plotly_chart(fig, use_container_width=True)
-
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.")
 
 
 # =========================================================
@@ -634,6 +676,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
