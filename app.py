@@ -599,18 +599,18 @@ with tab_kpis:
 # =========================================================
 # 🧩 DIMENSIONS TAB
 # =========================================================
-
 with tab_dimensions:
     st.subheader(bi_text("🧩 تحليل الأبعاد", "Dimension Analysis"))
     st.info(bi_text("تحليل متوسط الأبعاد بناءً على استبيانات المتعاملين", 
                     "Dimension averages based on customer feedback will appear here."))
 
+    # 🔍 استخراج أعمدة الأبعاد الفرعية مثل Dim1.1, Dim2.3 ...
     all_dim_cols = [c for c in df.columns if re.match(r"Dim\d+\.", c.strip())]
 
     if not all_dim_cols:
         st.warning("⚠️ لا توجد أعمدة فرعية للأبعاد (مثل Dim1.1, Dim2.3 ...).")
     else:
-        # حساب المتوسط لكل بعد رئيسي (Dim1 إلى Dim5)
+        # 🧮 حساب المتوسط لكل بعد رئيسي (Dim1 إلى Dim5)
         main_dims = {}
         for i in range(1, 6):
             sub_cols = [c for c in df.columns if c.startswith(f"Dim{i}.")]
@@ -620,7 +620,7 @@ with tab_dimensions:
         for k, v in main_dims.items():
             df[k] = v
 
-        # إعداد ملخص القيم
+        # 📊 إعداد ملخص القيم (متوسط كل بعد)
         summary = []
         for dim in [f"Dim{i}" for i in range(1, 6)]:
             if dim in df.columns:
@@ -628,7 +628,7 @@ with tab_dimensions:
                 summary.append({"Dimension": dim, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
-        # ربط الأسماء بالعربية أو الإنجليزية من ملف الأسئلة
+        # 🌐 ربط أسماء الأبعاد بالعربية / الإنجليزية من ملف QUESTIONS إن وجد
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -641,12 +641,12 @@ with tab_dimensions:
                                     qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
 
-        # ترتيب الأبعاد حسب Dim1 إلى Dim5
+        # 🔢 ترتيب الأبعاد حسب Dim1 → Dim5
         order = [f"Dim{i}" for i in range(1, 6)]
         dims["Dimension"] = pd.Categorical(dims["Dimension"], categories=order, ordered=True)
         dims = dims.sort_values("Dimension")
 
-        # تحديد اللون بناءً على النسبة
+        # 🎨 تحديد اللون بناءً على النسبة
         def get_color(score):
             if score < 70:
                 return "#FF6B6B"  # أحمر
@@ -659,40 +659,58 @@ with tab_dimensions:
 
         dims["Color"] = dims["Score"].apply(get_color)
 
-       # 🧭 الحفاظ على ترتيب الأبعاد حسب الجدول (Dim1 → Dim5)
-      dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
-      dims = dims.sort_values("Order")
+        # 🧭 الحفاظ على الترتيب الأصلي للأبعاد (Dim1 → Dim5)
+        dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
+        dims = dims.sort_values("Order")
 
-     # 🎨 رسم الأعمدة بالترتيب الصحيح
-     fig = px.bar(
-     dims,
-    x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
-    y="Score", text="Score",
-    color_discrete_sequence=PASTEL,
-    title=bi_text("تحليل متوسط الأبعاد", "Average Dimensions Analysis"),
-      )
+        # 🎨 إنشاء الرسم البياني بالألوان والتسميات الصحيحة
+        fig = px.bar(
+            dims,
+            x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+            y="Score",
+            text="Score",
+            color="Color",
+            color_discrete_map="identity",  # ✅ لربط اللون المحدد يدويًا
+            title=bi_text("تحليل متوسط الأبعاد", "Average Dimensions Analysis"),
+        )
 
-
-        
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
         fig.update_layout(
-            yaxis_title="النسبة المئوية (%)",
-            showlegend=False
+            yaxis_title=bi_text("النسبة المئوية (%)", "Percentage (%)"),
+            xaxis_title=bi_text("الأبعاد", "Dimensions"),
+            showlegend=False,
+            height=500
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # 🔹 إضافة وسيلة الإيضاح (الشرح)
-        st.markdown("""
-        **🗂️ Color Legend | وسيلة الإيضاح:**
-        - 🔴 **أقل من 70٪** — منخفض / ضعيف الأداء  
-        - 🟡 **من 70٪ إلى أقل من 80٪** — متوسط  
-        - 🟢 **من 80٪ إلى أقل من 90٪** — جيد  
-        - 🔵 **90٪ فأكثر** — ممتاز  
-        """, unsafe_allow_html=True)
+        # =========================================================
+        # 🗂️ وسيلة الإيضاح (Legend)
+        # =========================================================
+        if lang == "العربية":
+            st.markdown("""
+            **🗂️ وسيلة الإيضاح:**  
+            🔴 **أقل من 70٪** — منخفض / ضعيف الأداء  
+            🟡 **من 70٪ إلى أقل من 80٪** — متوسط  
+            🟢 **من 80٪ إلى أقل من 90٪** — جيد  
+            🔵 **90٪ فأكثر** — ممتاز  
+            """, unsafe_allow_html=True)
+        else:
+            st.markdown("""
+            **🗂️ Color Legend:**  
+            🔴 **Below 70%** — Low / Poor Performance  
+            🟡 **70% to <80%** — Average  
+            🟢 **80% to <90%** — Good  
+            🔵 **90% and above** — Excellent  
+            """, unsafe_allow_html=True)
 
-        # عرض الجدول
-        st.dataframe(dims, use_container_width=True)
+        # =========================================================
+        # 📋 عرض جدول القيم النهائية
+        # =========================================================
+        st.dataframe(
+            dims[["Dimension", "Score", "Dimension_name", "Color"]],
+            use_container_width=True
+        )
 
 # =========================================================
 # 📋 SERVICES TAB — تحليل الخدمات (Happiness / Value / NPS)
@@ -1007,6 +1025,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
