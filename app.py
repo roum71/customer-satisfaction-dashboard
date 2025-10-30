@@ -54,7 +54,7 @@ USER_KEYS = {
 st.set_page_config(page_title="لوحة تجربة المتعاملين 2025 — رأس الخيمة", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
-=========================================================
+#=========================================================
 # 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (Full Width + GitHub Link)
 # =========================================================
 
@@ -1025,6 +1025,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
