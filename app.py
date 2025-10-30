@@ -55,34 +55,53 @@ st.set_page_config(page_title="لوحة تجربة المتعاملين — رأ
 PASTEL = px.colors.qualitative.Pastel
 
 # =========================================================
-# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (نسخة محسّنة)
+# 🏛️ HEADER — شعار الأمانة العامة + عنوان التقرير الرسمي (Responsive)
 # =========================================================
 from PIL import Image
 
-logo_path = "assets/logo_gsec_full.png"  # المسار إلى الشعار داخل مجلد assets
+logo_path = "assets/logo_gsec_full.png"
 
 try:
     logo = Image.open(logo_path)
     
-    # عرض الشعار والعنوان بمحاذاة وسط الصفحة
-    col1, col2, col3 = st.columns([1.5, 4, 1.5])
+    # تصميم متجاوب مع حجم الشاشة
+    st.markdown("""
+        <style>
+        @media (min-width: 1200px) {
+            .header-logo {width: 700px;}
+            .header-title h1 {font-size: 44px;}
+            .header-title h2 {font-size: 26px;}
+        }
+        @media (max-width: 1199px) and (min-width: 768px) {
+            .header-logo {width: 550px;}
+            .header-title h1 {font-size: 40px;}
+            .header-title h2 {font-size: 22px;}
+        }
+        @media (max-width: 767px) {
+            .header-logo {width: 350px;}
+            .header-title h1 {font-size: 32px;}
+            .header-title h2 {font-size: 18px;}
+        }
+        </style>
+    """, unsafe_allow_html=True)
+    
+    col1, col2, col3 = st.columns([1, 6, 1])
     with col1:
-        st.image(logo, width=600)  # زيادة حجم الشعار
+        st.image(logo, use_column_width=True, output_format="PNG")
     with col2:
         st.markdown("""
-            <div style='text-align:center; margin-top:25px;'>
-                <h1 style='font-size:40px; color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
-                <h2 style='font-size:24px; color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
+            <div class='header-title' style='text-align:center; margin-top:25px;'>
+                <h1 style='color:#b30000; font-weight:bold; margin-bottom:0;'>تقرير تجربة المتعاملين 2025</h1>
+                <h2 style='color:#333; margin-top:5px;'>Customer Experience Report 2025</h2>
             </div>
         """, unsafe_allow_html=True)
     with col3:
-        st.write("")  # عمود توازن للمحاذاة
+        st.write("")
     
 except Exception as e:
     st.warning(f"⚠️ لم يتم العثور على الشعار: {e}")
 
 st.markdown("---")
-
 
 # =========================================================
 # LANGUAGE
@@ -720,6 +739,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
