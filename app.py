@@ -594,8 +594,6 @@ with tab_kpis:
         </div>
         """
     st.markdown(legend_html, unsafe_allow_html=True)
-
-
 # =========================================================
 # 🧩 DIMENSIONS TAB
 # =========================================================
@@ -628,7 +626,7 @@ with tab_dimensions:
                 summary.append({"Dimension": dim, "Score": avg})
         dims = pd.DataFrame(summary).dropna()
 
-        # 🌐 ربط أسماء الأبعاد بالعربية / الإنجليزية من ملف QUESTIONS إن وجد
+        # 🌐 ربط أسماء الأبعاد بالعربية / الإنجليزية من ملف الأسئلة
         if "QUESTIONS" in lookup_catalog:
             qtbl = lookup_catalog["QUESTIONS"]
             qtbl.columns = [c.strip().upper() for c in qtbl.columns]
@@ -640,11 +638,14 @@ with tab_dimensions:
                 name_map = dict(zip(qtbl["CODE_NORM"],
                                     qtbl[ar_col if lang == "العربية" else en_col]))
                 dims["Dimension_name"] = dims["Dimension"].map(name_map)
+            else:
+                dims["Dimension_name"] = dims["Dimension"]
+        else:
+            dims["Dimension_name"] = dims["Dimension"]
 
-        # 🔢 ترتيب الأبعاد حسب Dim1 → Dim5
-        order = [f"Dim{i}" for i in range(1, 6)]
-        dims["Dimension"] = pd.Categorical(dims["Dimension"], categories=order, ordered=True)
-        dims = dims.sort_values("Dimension")
+        # 🔢 الحفاظ على الترتيب الأصلي (Dim1 → Dim5)
+        dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
+        dims = dims.sort_values("Order")
 
         # 🎨 تحديد اللون بناءً على النسبة
         def get_color(score):
@@ -659,18 +660,18 @@ with tab_dimensions:
 
         dims["Color"] = dims["Score"].apply(get_color)
 
-        # 🧭 الحفاظ على الترتيب الأصلي للأبعاد (Dim1 → Dim5)
-        dims["Order"] = dims["Dimension"].str.extract(r"(\d+)").astype(float)
-        dims = dims.sort_values("Order")
+        # 🧭 تثبيت ترتيب الأعمدة كما هو في الجدول
+        category_order = dims["Dimension_name"].tolist()
 
-        # 🎨 إنشاء الرسم البياني بالألوان والتسميات الصحيحة
+        # 🎨 إنشاء الرسم البياني بالترتيب الصحيح
         fig = px.bar(
             dims,
-            x="Dimension_name" if "Dimension_name" in dims.columns else "Dimension",
+            x="Dimension_name",
             y="Score",
             text="Score",
             color="Color",
-            color_discrete_map="identity",  # ✅ لربط اللون المحدد يدويًا
+            color_discrete_map="identity",
+            category_orders={"Dimension_name": category_order},  # ✅ هنا المفتاح
             title=bi_text("تحليل متوسط الأبعاد", "Average Dimensions Analysis"),
         )
 
@@ -705,7 +706,7 @@ with tab_dimensions:
             """, unsafe_allow_html=True)
 
         # =========================================================
-        # 📋 عرض جدول القيم النهائية
+        # 📋 عرض الجدول
         # =========================================================
         st.dataframe(
             dims[["Dimension", "Score", "Dimension_name", "Color"]],
@@ -1025,6 +1026,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
