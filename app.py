@@ -559,6 +559,52 @@ for col, val, mtype in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"
             text = f"🔎 Interpretation: {label}"
         col.markdown(f"<p style='{text_color}'>{text}</p>", unsafe_allow_html=True)
 
+
+
+        # =========================================================
+# 🎨 وسيلتا الإيضاح (Legends)
+# =========================================================
+
+if lang == "العربية":
+    legend_html = """
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:10px;padding:12px;margin-top:15px;'>
+      <h4 style='margin-bottom:8px;'>🎨 وسيلة الإيضاح — السعادة / القيمة</h4>
+      🔴 أقل من 70٪ — ضعيف جدًا<br>
+      🟡 من 70 إلى أقل من 80٪ — بحاجة إلى تحسين<br>
+      🟢 من 80 إلى أقل من 90٪ — جيد<br>
+      🔵 90٪ فأكثر — ممتاز
+    </div>
+
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:10px;padding:12px;margin-top:10px;'>
+      <h4 style='margin-bottom:8px;'>🎯 وسيلة الإيضاح — صافي نقاط الترويج (NPS)</h4>
+      🔴 أقل من 0 — ضعيف جدًا (عدد المعارضين أكبر من المروجين)<br>
+      🟡 من 0 إلى أقل من 30 — ضعيف (رضا محدود)<br>
+      🟢 من 30 إلى أقل من 60 — جيد (رضا عام)<br>
+      🔵 60 فأكثر — ممتاز (ولاء مرتفع جدًا)
+    </div>
+    """
+else:
+    legend_html = """
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:10px;padding:12px;margin-top:15px;'>
+      <h4 style='margin-bottom:8px;'>🎨 Legend — Happiness / Value</h4>
+      🔴 Below 70% — Very Poor<br>
+      🟡 70–80% — Needs Improvement<br>
+      🟢 80–90% — Good<br>
+      🔵 90%+ — Excellent
+    </div>
+
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:10px;padding:12px;margin-top:10px;'>
+      <h4 style='margin-bottom:8px;'>🎯 Legend — NPS (Net Promoter Score)</h4>
+      🔴 Below 0 — Very Poor (More detractors than promoters)<br>
+      🟡 0–30 — Fair (Limited satisfaction)<br>
+      🟢 30–60 — Good (Majority satisfied)<br>
+      🔵 60+ — Excellent (Strong loyalty)
+    </div>
+    """
+
+st.markdown(legend_html, unsafe_allow_html=True)
+
+
 # =========================================================
 # 🧩 DIMENSIONS TAB
 # =========================================================
@@ -965,6 +1011,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
