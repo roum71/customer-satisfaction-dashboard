@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Customer Satisfaction Dashboard — v10.7 (Fixed & Stable)
+Customer  Experience  Dashboard — v10.7 
 Unified | Secure | Multi-Center | Lookup | KPI Gauges | Dimensions | Pareto | Services Overview
 """
 
@@ -51,7 +51,7 @@ USER_KEYS = {
 # =========================================================
 # PAGE CONFIG
 # =========================================================
-st.set_page_config(page_title="لوحة تجربة المتعاملين — رأس الخيمة", layout="wide")
+st.set_page_config(page_title="لوحة تجربة المتعاملين 2025 — رأس الخيمة", layout="wide")
 PASTEL = px.colors.qualitative.Pastel
 
 
@@ -126,7 +126,6 @@ df = safe_read(file_path)
 if df is None:
     st.error(f"❌ تعذر تحميل الملف: {file_path}")
     st.stop()
-
 
 
 
@@ -250,7 +249,7 @@ tab_data, tab_sample, tab_kpis, tab_dimensions, tab_services, tab_pareto = st.ta
     bi_text("📊 المؤشرات", "KPIs"),
     bi_text("🧩 الأبعاد", "Dimensions"),
     bi_text("📋 الخدمات", "Services"),
-    bi_text("💬مزعجات", "Pain Points")
+    bi_text("💬المزعجات", "Pain Points")
 ])
 
 # =========================================================
@@ -1009,6 +1008,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
