@@ -317,6 +317,8 @@ with tab_sample:
                 col_label = "الجنسية"
             elif "ACADEMIC" in col.upper():
                 col_label = "المستوى الأكاديمي"
+            elif "Sector" in col.upper():
+                col_label = "القطاع"
             elif "SERVICE" in col.upper():
                 col_label = "الخدمة"
             else:
@@ -759,6 +761,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
