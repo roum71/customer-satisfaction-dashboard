@@ -85,6 +85,14 @@ if lang == "العربية":
         </style>
     """, unsafe_allow_html=True)
 
+
+# =========================================================
+# 🌍 BILINGUAL TEXT FUNCTION
+# =========================================================
+def bi_text(ar_text, en_text):
+    """عرض النص بالعربية أو الإنجليزية بناءً على اختيار المستخدم"""
+    return ar_text if lang == "العربية" else en_text
+
 # =========================================================
 # LOGIN
 # =========================================================
@@ -736,6 +744,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
