@@ -378,9 +378,14 @@ with tab_sample:
 # =========================================================
 # 📊 KPIs TAB — 3 gauges + NPS breakdown
 # =========================================================
-st.subheader(bi_text("📊 مؤشرات الأداء", "Performance Indicators (KPIs)"))
+
+with tab_kpis:
+    st.subheader(bi_text("📊 مؤشرات الأداء", "Performance Indicators (KPIs)"))
     st.info(bi_text("سيتم عرض مؤشرات السعادة والقيمة وصافي نقاط الترويج هنا", 
-                    "Happiness, Value, and NPS indicators will be displayed here.")))
+                    "Happiness, Value, and NPS indicators will be displayed here."))
+
+
+
 
     csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
     ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
@@ -728,6 +733,7 @@ st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Co
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
