@@ -473,7 +473,7 @@ with tab_kpis:
     def create_gauge(score, metric_type, lang="العربية"):
         color, label = get_color_and_label(score, metric_type, lang)
         if metric_type in ["CSAT", "CES"]:
-            title = "السعادة / Happiness" if metric_type == "CSAT" else "القيمة / Value"
+            title = "السعادة عموما / Overall Happiness" if metric_type == "CSAT" else " القيمة مقابل الجهد والتكلفة / Value"
             axis_range = [0, 100]
             steps = [
                 {'range': [0, 70], 'color': '#FF6B6B'},
@@ -765,12 +765,12 @@ with tab_services:
             summary = (
                 df_services.groupby("SERVICE")
                 .agg({
-                    "Happiness / سعادة (٪)": "mean",
-                    "Value / قيمة (٪)": "mean",
+                    "Overall Happiness/ السعادة عموما (٪)": "mean",
+                    "Value / قيمة مقابل جهد وتكلفة (٪)": "mean",
                     csat_col: "count"
                 })
                 .reset_index()
-                .rename(columns={csat_col: "عدد الردود"})
+                .rename(columns={csat_col: "Responses/الردود"})
             )
 
             # دمج نتائج NPS مع بقية المؤشرات
@@ -1038,6 +1038,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
