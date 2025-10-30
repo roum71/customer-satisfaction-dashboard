@@ -429,43 +429,126 @@ with tab_sample:
                 matrix.style.format({bi_text("النسبة المئوية", "Percentage"): "{:.1f}%"}),
                 use_container_width=True
             )
-
-    
 # =========================================================
-# 📊 KPIs TAB — 3 gauges + NPS breakdown
+# 📊 KPIs TAB — السعادة / القيمة / صافي نقاط الترويج
 # =========================================================
-
 with tab_kpis:
-    st.subheader(bi_text("📊 مؤشرات الأداء", "Performance Indicators (KPIs)"))
-    st.info(bi_text("سيتم عرض مؤشرات السعادة والقيمة وصافي نقاط الترويج هنا", 
-                    "Happiness, Value, and NPS indicators will be displayed here."))
+    st.subheader(bi_text("📊 مؤشرات الأداء الرئيسية (السعادة / القيمة / صافي نقاط الترويج)", 
+                         "Key Performance Indicators (Happiness / Value / NPS)"))
+    st.info(bi_text("يعرض هذا القسم نتائج المؤشرات الثلاثة مع تدرج الألوان وفقًا لأفضل الممارسات.",
+                    "This section shows the three key indicators with color bins aligned to best practices."))
 
+    # 🧮 حساب المؤشرات من البيانات
+    csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))   # Happiness
+    ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))    # Value
+    nps, prom, passv, detr = detect_nps(df)                              # NPS
 
+    # =========================================================
+    # 🎨 تدرج الألوان والأوصاف حسب اللغة
+    # =========================================================
+    def get_color_and_label(score, metric_type, lang="العربية"):
+        if metric_type in ["CSAT", "CES"]:
+            if score < 70:
+                color, label = "#FF6B6B", ("ضعيف جدًا" if lang == "العربية" else "Very Poor")
+            elif score < 80:
+                color, label = "#FFD93D", ("بحاجة إلى تحسين" if lang == "العربية" else "Needs Improvement")
+            elif score < 90:
+                color, label = "#6BCB77", ("جيد" if lang == "العربية" else "Good")
+            else:
+                color, label = "#4D96FF", ("ممتاز" if lang == "العربية" else "Excellent")
+        else:  # NPS logic
+            if score < 0:
+                color, label = "#FF6B6B", ("ضعيف جدًا" if lang == "العربية" else "Very Poor")
+            elif score < 30:
+                color, label = "#FFD93D", ("ضعيف" if lang == "العربية" else "Fair")
+            elif score < 60:
+                color, label = "#6BCB77", ("جيد" if lang == "العربية" else "Good")
+            else:
+                color, label = "#4D96FF", ("ممتاز" if lang == "العربية" else "Excellent")
+        return color, label
 
+    # =========================================================
+    # 🧭 دالة إنشاء الرسم Gauge
+    # =========================================================
+    def create_gauge(score, metric_type, lang="العربية"):
+        color, label = get_color_and_label(score, metric_type, lang)
+        if metric_type in ["CSAT", "CES"]:
+            title = "السعادة / Happiness" if metric_type == "CSAT" else "القيمة / Value"
+            axis_range = [0, 100]
+            steps = [
+                {'range': [0, 70], 'color': '#FF6B6B'},
+                {'range': [70, 80], 'color': '#FFD93D'},
+                {'range': [80, 90], 'color': '#6BCB77'},
+                {'range': [90, 100], 'color': '#4D96FF'}
+            ]
+        else:
+            title = "صافي نقاط الترويج / NPS"
+            axis_range = [-100, 100]
+            steps = [
+                {'range': [-100, 0], 'color': '#FF6B6B'},
+                {'range': [0, 30], 'color': '#FFD93D'},
+                {'range': [30, 60], 'color': '#6BCB77'},
+                {'range': [60, 100], 'color': '#4D96FF'}
+            ]
 
-    csat = series_to_percent(df.get("Dim6.1", pd.Series(dtype=float)))
-    ces = series_to_percent(df.get("Dim6.2", pd.Series(dtype=float)))
-    nps, prom, passv, detr = detect_nps(df)
-
-    c1, c2, c3 = st.columns(3)
-    for col, val, name in zip([c1, c2, c3], [csat, ces, nps], ["Overall Happiness السعادة", "Value القيمة ", "NPS صافي نقاط الترويج"]):
         fig = go.Figure(go.Indicator(
             mode="gauge+number",
-            value=val if not np.isnan(val) else 0,
-            title={'text': name},
-            gauge={'axis': {'range': [0, 100]},
-                   'steps': [{'range': [0, 60], 'color': '#f5b7b1'},
-                             {'range': [60, 80], 'color': '#fcf3cf'},
-                             {'range': [80, 100], 'color': '#c8f7c5'}],
-                   'bar': {'color': '#2ecc71'}}))
-        col.plotly_chart(fig, use_container_width=True)
+            value=score if not np.isnan(score) else 0,
+            number={'suffix': "٪" if metric_type != "NPS" else ""},
+            title={'text': title, 'font': {'size': 18}},
+            gauge={
+                'axis': {'range': axis_range},
+                'bar': {'color': color},
+                'steps': steps
+            }
+        ))
+        fig.update_layout(height=300, margin=dict(l=30, r=30, t=60, b=30))
+        return fig, label
 
-    st.markdown(f"""
-    #### 🔎 تفاصيل مؤشر NPS
-    - **Promoters (المروجون):** {prom:.1f}%
-    - **Passives (المحايدون):** {passv:.1f}%
-    - **Detractors (المعارضون):** {detr:.1f}%
-    """)
+    # =========================================================
+    # 📈 عرض المؤشرات الثلاثة (السعادة / القيمة / NPS)
+    # =========================================================
+    c1, c2, c3 = st.columns(3)
+    for col, val, mtype in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
+        fig, label = create_gauge(val, mtype, lang)
+        col.plotly_chart(fig, use_container_width=True)
+        if mtype == "NPS":
+            col.markdown(
+                bi_text(f"**🔎 التفسير:** {label}<br>المروجون: {prom:.1f}% | المحايدون: {passv:.1f}% | المعارضون: {detr:.1f}%",
+                        f"**🔎 Interpretation:** {label}<br>Promoters: {prom:.1f}% | Passives: {passv:.1f}% | Detractors: {detr:.1f}%"),
+                unsafe_allow_html=True
+            )
+        else:
+            col.markdown(
+                bi_text(f"**🔎 التفسير:** {label}", f"**🔎 Interpretation:** {label}"),
+                unsafe_allow_html=True
+            )
+
+    # =========================================================
+    # 🎨 وسيلة الإيضاح (Legend)
+    # =========================================================
+    legend_html = """
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;'>
+      <p style='font-size:15px;margin:0;'>
+        <b>🎨 وسيلة الإيضاح / Legend:</b><br>
+        🔴 أقل من 70٪ — ضعيف جدًا / Very Poor<br>
+        🟡 من 70 إلى أقل من 80 — بحاجة إلى تحسين / Needs Improvement<br>
+        🟢 من 80 إلى أقل من 90 — جيد / Good<br>
+        🔵 90 فأكثر — ممتاز / Excellent
+      </p>
+    </div>
+    """ if lang == "العربية" else """
+    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;'>
+      <p style='font-size:15px;margin:0;'>
+        <b>🎨 Legend:</b><br>
+        🔴 Below 70 — Very Poor<br>
+        🟡 70–80 — Needs Improvement<br>
+        🟢 80–90 — Good<br>
+        🔵 90+ — Excellent
+      </p>
+    </div>
+    """
+    st.markdown(legend_html, unsafe_allow_html=True)
 
 # =========================================================
 # 🧩 DIMENSIONS TAB
@@ -873,6 +956,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
