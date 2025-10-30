@@ -633,7 +633,7 @@ with tab_services:
             summary.rename(columns={"SERVICE": "الخدمة / Service"}, inplace=True)
 
             # 🚫 عرض فقط الخدمات التي بها 30 ردًا أو أكثر
-            summary = summary[summary["عدد الردود"] >= 30]
+            summary = summary[summary["#Responses/عدد الردود"] >= 30]
 
             # 🧭 ترتيب الجدول تنازليًا حسب السعادة
             summary = summary.sort_values("Happiness / سعادة (٪)", ascending=False)
@@ -771,9 +771,9 @@ with tab_pareto:
 
         all_answers = df.groupby("Theme")["__clean"].apply(lambda x:" / ".join(x.astype(str))).reset_index()
         counts = counts.merge(all_answers,on="Theme",how="left")
-        counts.rename(columns={"__clean":"جميع الإجابات"},inplace=True)
+        counts.rename(columns={"__clean":"جميع الإجابات/ All Responses"},inplace=True)
 
-        st.dataframe(counts[["Theme","Count","%","Cum%","جميع الإجابات"]]
+        st.dataframe(counts[["Theme","Count","%","Cum%","جميع الإجابات/ All Responses"]]
                      .style.format({"%":"{:.1f}","Cum%":"{:.1f}"}), use_container_width=True)
 
         fig = go.Figure()
@@ -792,6 +792,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
