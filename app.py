@@ -93,24 +93,54 @@ def bi_text(ar_text, en_text):
     return ar_text if lang == "العربية" else en_text
 
 # =========================================================
-# LOGIN
+# LOGIN (ثنائي اللغة)
 # =========================================================
 params = st.query_params
 center_from_link = params.get("center", [None])[0]
-center_options = list(USER_KEYS.keys())
 
+# 🗂️ إعداد قائمة المراكز بالعربية والإنجليزية
+center_names_ar = {
+    "Public Services Department": "دائرة الخدمات العامة",
+    "Ras Al Khaimah Municipality": "بلدية رأس الخيمة",
+    "Sheikh Saud Center-Ras Al Khaimah Courts": "مركز الشيخ سعود - محاكم رأس الخيمة",
+    "Sheikh Saqr Center-Ras Al Khaimah Courts": "مركز الشيخ صقر - محاكم رأس الخيمة",
+    "Executive Council": "الأمانة العامة للمجلس التنفيذي"
+}
+
+# ✅ اختيار الاسم حسب اللغة
+if lang == "العربية":
+    center_options = [center_names_ar.get(k, k) for k in USER_KEYS.keys()]
+else:
+    center_options = list(USER_KEYS.keys())
+
+# 🏢 اختيار المركز
+st.sidebar.header(bi_text("🏢 اختر المركز", "🏢 Select Center"))
+
+# ⚙️ إنشاء خريطة عكسية عند استخدام اللغة العربية
+reverse_map = {v: k for k, v in center_names_ar.items()}
+
+# إذا تم التمرير عبر الرابط
 if center_from_link and center_from_link in USER_KEYS:
     selected_center = center_from_link
 else:
-    st.sidebar.header("🏢 اختر المركز / Select Center")
-    selected_center = st.sidebar.selectbox("Select Center / اختر المركز", center_options)
+    selected_center = st.sidebar.selectbox(
+        bi_text("اختر المركز", "Select Center"),
+        center_options
+    )
 
+# 🔁 تحويل الاسم العربي إلى الاسم الأصلي (المفتاح الحقيقي)
+if lang == "العربية":
+    selected_center = reverse_map.get(selected_center, selected_center)
+
+# حفظ حالة الجلسة
 if "authorized" not in st.session_state:
     st.session_state.update({"authorized": False, "center": None, "role": None})
 
+# التحقق من كلمة المرور
 if not st.session_state["authorized"] or st.session_state["center"] != selected_center:
-    st.sidebar.subheader("🔑 كلمة المرور / Password")
-    password = st.sidebar.text_input("Password", type="password")
+    st.sidebar.subheader(bi_text("🔑 كلمة المرور", "🔑 Password"))
+    password = st.sidebar.text_input(bi_text("كلمة المرور", "Password"), type="password")
+    
     if password == USER_KEYS[selected_center]["password"]:
         st.session_state.update({
             "authorized": True,
@@ -118,13 +148,14 @@ if not st.session_state["authorized"] or st.session_state["center"] != selected_
             "role": USER_KEYS[selected_center]["role"],
             "file": USER_KEYS[selected_center]["file"]
         })
-        st.success(f"✅ تم تسجيل الدخول كمركز: {selected_center}")
+        st.success(bi_text(f"✅ تم تسجيل الدخول كمركز: {center_names_ar.get(selected_center, selected_center)}",
+                           f"✅ Logged in as: {selected_center}"))
         st.rerun()
     elif password:
-        st.error("🚫 كلمة المرور غير صحيحة.")
+        st.error(bi_text("🚫 كلمة المرور غير صحيحة.", "🚫 Incorrect password."))
         st.stop()
     else:
-        st.warning("يرجى إدخال كلمة المرور.")
+        st.warning(bi_text("يرجى إدخال كلمة المرور.", "Please enter the password."))
         st.stop()
 
 center, role = st.session_state["center"], st.session_state["role"]
@@ -1045,6 +1076,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
