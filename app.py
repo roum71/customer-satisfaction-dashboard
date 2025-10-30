@@ -117,6 +117,13 @@ if df is None:
     st.error(f"❌ تعذر تحميل الملف: {file_path}")
     st.stop()
 
+
+# ✅ Debug: check data columns and lookup sheets
+st.write("🔍 Data columns:", df.columns.tolist())
+st.write("📘 Lookup sheets:", list(lookup_catalog.keys()))
+
+
+
 # =========================================================
 # LOOKUP TABLES
 # =========================================================
@@ -685,6 +692,7 @@ with tab_pareto:
                            data=pareto_buffer.getvalue(),
                            file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
                            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
 
 
 
