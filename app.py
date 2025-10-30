@@ -505,50 +505,59 @@ with tab_kpis:
         fig.update_layout(height=300, margin=dict(l=30, r=30, t=60, b=30))
         return fig, label
 
-    # =========================================================
-    # 📈 عرض المؤشرات الثلاثة (السعادة / القيمة / NPS)
-    # =========================================================
-    c1, c2, c3 = st.columns(3)
-    for col, val, mtype in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
-        fig, label = create_gauge(val, mtype, lang)
-        col.plotly_chart(fig, use_container_width=True)
-        if mtype == "NPS":
+  # =========================================================
+# 📈 عرض المؤشرات الثلاثة (السعادة / القيمة / NPS)
+# =========================================================
+c1, c2, c3 = st.columns(3)
+for col, val, mtype in zip([c1, c2, c3], [csat, ces, nps], ["CSAT", "CES", "NPS"]):
+    fig, label = create_gauge(val, mtype, lang)
+    col.plotly_chart(fig, use_container_width=True)
+
+    # 🧮 تحديد اللون الخاص بالتفسير نفسه
+    color, _ = get_color_and_label(val, mtype, lang)
+    text_color = f"color:{color};font-weight:bold;"
+
+    # 🔎 تفسير مخصص للـ NPS
+    if mtype == "NPS":
+        if lang == "العربية":
+            if val < 0:
+                detail = "نتيجة سلبية تشير إلى أن عدد المعارضين يفوق عدد المروجين."
+            elif val < 30:
+                detail = "نتيجة ضعيفة — رضا العملاء محدود وعدد المروجين منخفض."
+            elif val < 60:
+                detail = "نتيجة جيدة — أغلب العملاء راضون والمروجون أكثر من المعارضين."
+            else:
+                detail = "نتيجة ممتازة — ولاء العملاء مرتفع جدًا ومعظمهم مروجون للخدمة."
+            
             col.markdown(
-                bi_text(f"**🔎 التفسير:** {label}<br>المروجون: {prom:.1f}% | المحايدون: {passv:.1f}% | المعارضون: {detr:.1f}%",
-                        f"**🔎 Interpretation:** {label}<br>Promoters: {prom:.1f}% | Passives: {passv:.1f}% | Detractors: {detr:.1f}%"),
-                unsafe_allow_html=True
-            )
-        else:
-            col.markdown(
-                bi_text(f"**🔎 التفسير:** {label}", f"**🔎 Interpretation:** {label}"),
+                f"<p style='{text_color}'>🔎 التفسير: {label}<br>{detail}<br>"
+                f"المروجون: {prom:.1f}% | المحايدون: {passv:.1f}% | المعارضون: {detr:.1f}%</p>",
                 unsafe_allow_html=True
             )
 
-    # =========================================================
-    # 🎨 وسيلة الإيضاح (Legend)
-    # =========================================================
-    legend_html = """
-    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;'>
-      <p style='font-size:15px;margin:0;'>
-        <b>🎨 وسيلة الإيضاح / Legend:</b><br>
-        🔴 أقل من 70٪ — ضعيف جدًا / Very Poor<br>
-        🟡 من 70 إلى أقل من 80 — بحاجة إلى تحسين / Needs Improvement<br>
-        🟢 من 80 إلى أقل من 90 — جيد / Good<br>
-        🔵 90 فأكثر — ممتاز / Excellent
-      </p>
-    </div>
-    """ if lang == "العربية" else """
-    <div style='background-color:#f9f9f9;border:1px solid #ddd;border-radius:8px;padding:10px;margin-top:10px;'>
-      <p style='font-size:15px;margin:0;'>
-        <b>🎨 Legend:</b><br>
-        🔴 Below 70 — Very Poor<br>
-        🟡 70–80 — Needs Improvement<br>
-        🟢 80–90 — Good<br>
-        🔵 90+ — Excellent
-      </p>
-    </div>
-    """
-    st.markdown(legend_html, unsafe_allow_html=True)
+        else:
+            if val < 0:
+                detail = "Negative score — more detractors than promoters."
+            elif val < 30:
+                detail = "Low score — limited satisfaction and few promoters."
+            elif val < 60:
+                detail = "Good score — most customers are satisfied, promoters exceed detractors."
+            else:
+                detail = "Excellent score — strong loyalty and many promoters."
+            
+            col.markdown(
+                f"<p style='{text_color}'>🔎 Interpretation: {label}<br>{detail}<br>"
+                f"Promoters: {prom:.1f}% | Passives: {passv:.1f}% | Detractors: {detr:.1f}%</p>",
+                unsafe_allow_html=True
+            )
+
+    # 🧠 تفسير لبقية المؤشرات (CSAT و CES)
+    else:
+        if lang == "العربية":
+            text = f"🔎 التفسير: {label}"
+        else:
+            text = f"🔎 Interpretation: {label}"
+        col.markdown(f"<p style='{text_color}'>{text}</p>", unsafe_allow_html=True)
 
 # =========================================================
 # 🧩 DIMENSIONS TAB
@@ -956,6 +965,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
