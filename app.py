@@ -670,13 +670,19 @@ with tab_dimensions:
         fig.update_traces(texttemplate="%{text:.1f}%", textposition="outside")
 
         fig.update_layout(
-            title=dict(text=chart_title, x=0.5, font=dict(size=18, color="#333", family="Cairo, sans-serif")),
-            xaxis_title=x_axis_title,
-            yaxis_title=y_axis_title,
-            yaxis=dict(range=[0, 100]),
-            showlegend=False,
-            margin=dict(t=60, b=40)
-        )
+    title=dict(
+        text=chart_title,
+        x=0.5,  # 📍 العنوان في المنتصف
+        xanchor="center",
+        font=dict(size=18, family="Cairo, sans-serif", color="#333")
+    ),
+    xaxis_title=x_axis_title,
+    yaxis_title=y_axis_title,
+    yaxis=dict(range=[0, 100]),
+    showlegend=False,
+    margin=dict(t=60, b=40)
+)
+
 
         st.plotly_chart(fig, use_container_width=True)
 
@@ -1025,6 +1031,7 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+
 
 
 
