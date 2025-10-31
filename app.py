@@ -928,20 +928,23 @@ with tab_services:
                 ))
 
 # =========================================================
-# 💬 PARETO TAB — تحليل الملاحظات (ثنائي اللغة)
+# 💬 PARETO TAB — تحليل الملاحظات النوعية
 # =========================================================
 with tab_pareto:
-    st.subheader(bi_text("💬 تحليل المزعجات (Pareto)", "Customer Comments )"))
+    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
     st.info(bi_text(
         "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
     ))
 
+    # 🔎 البحث عن العمود النصي المناسب
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
     else:
         col = text_cols[0]
+
+        # 🧹 تنظيف النصوص
         df["__clean"] = df[col].astype(str).str.lower()
         df["__clean"] = df["__clean"].replace(r"[^\u0600-\u06FFA-Za-z0-9\s]", " ", regex=True)
         df["__clean"] = df["__clean"].replace(r"\s+", " ", regex=True).str.strip()
@@ -950,6 +953,7 @@ with tab_pareto:
         df = df[~df["__clean"].isin(empty_terms)]
         df = df[df["__clean"].apply(lambda x: len(x.split()) >= 3)]
 
+        # 🧭 تصنيف الملاحظات إلى محاور رئيسية
         themes = {
             "Parking / مواقف السيارات": ["موقف", "مواقف", "parking"],
             "Waiting / الانتظار": ["انتظار", "بطء", "delay", "slow"],
@@ -970,127 +974,68 @@ with tab_pareto:
         df["Theme"] = df["__clean"].apply(classify_theme)
         df = df[df["Theme"] != "Other / أخرى"]
 
+        # 📊 حساب عدد الملاحظات والنسب
         counts = df["Theme"].value_counts().reset_index()
         counts.columns = ["Theme", "Count"]
         counts["%"] = counts["Count"] / counts["Count"].sum() * 100
         counts["Cum%"] = counts["%"].cumsum()
-        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
 
+        # 🗂️ جميع الإجابات النصية المجمعة لكل محور
         all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
         counts = counts.merge(all_answers, on="Theme", how="left")
-        counts.rename(columns={"__clean": bi_text("جميع الإجابات", "All Responses")}, inplace=True)
+        counts.rename(columns={"__clean": "جميع الإجابات / All Responses"}, inplace=True)
 
-        # 📋 إعداد أسماء الأعمدة حسب اللغة
-        if lang == "العربية":
-            counts_display = counts.rename(columns={
-                "Theme": "المحور / Theme",
-                "Count": "عدد الملاحظات / Count",
-                "%": "النسبة %",
-                "Cum%": "النسبة التراكمية %",
-                bi_text("جميع الإجابات", "All Responses"): "جميع الإجابات / All Responses"
-            })
-        else:
-            counts_display = counts.rename(columns={
-                "Theme": "Theme",
-                "Count": "Count",
-                "%": "%",
-                "Cum%": "Cum %",
-                bi_text("جميع الإجابات", "All Responses"): "All Responses"
-            })
-
-
-        # إزالة الأعمدة غير المرغوبة
+        # 📋 إزالة الأعمدة غير المرغوبة (Color) وإخفاء التسلسل
         pareto_display = counts.drop(columns=["Color"], errors="ignore").reset_index(drop=True)
 
-        # عرض الجدول بدون عمود التسلسل أو الألوان
         st.dataframe(
-        pareto_display[["Theme", "Count", "%", "Cum%", "جميع الإجابات/ All Responses"]]
-        .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
-        use_container_width=True,
-        hide_index=True  # ✅ لإخفاء عمود التسلسل
-            )
+            pareto_display[["Theme", "Count", "%", "Cum%", "جميع الإجابات / All Responses"]]
+                .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+            use_container_width=True,
+            hide_index=True
+        )
 
-         # 📈 رسم Pareto ثنائي اللغة
+        # 📈 رسم باريتو
         fig = go.Figure()
-        fig.add_bar(
-            x=counts["Theme"],
-            y=counts["Count"],
-            marker_color=counts["Color"],
-            name=bi_text("عدد الملاحظات", "Number of Comments")
-        )
-        fig.add_scatter(
-            x=counts["Theme"],
-            y=counts["Cum%"],
-            name=bi_text("النسبة التراكمية", "Cumulative %"),
-            yaxis="y2",
-            mode="lines+markers",
-            line=dict(color="#2e86de", width=2)
-        )
+        fig.add_bar(x=counts["Theme"], y=counts["Count"], name="عدد الملاحظات", marker_color="#3498db")
+        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="النسبة التراكمية", yaxis="y2", mode="lines+markers")
 
         fig.update_layout(
-            title=bi_text("تحليل باريتو — المحاور الرئيسية", "Pareto Analysis — Main Themes"),
-            yaxis=dict(title=bi_text("عدد الملاحظات", "Number of Comments")),
-            yaxis2=dict(
-                title=bi_text("النسبة التراكمية (%)", "Cumulative Percentage (%)"),
-                overlaying="y",
-                side="right"
+            title=dict(
+                text=bi_text("📊 تحليل باريتو — المحاور الرئيسية", "📊 Pareto Analysis — Key Themes"),
+                x=0.5, xanchor="center", font=dict(size=18, color="#333")
             ),
-            xaxis=dict(
-                title=bi_text("المحاور / Themes", "Themes"),
-                tickfont=dict(size=12)
-            ),
+            yaxis=dict(title="عدد الملاحظات"),
+            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
             bargap=0.25,
             height=600,
-            title_x=0.5,
-            legend_title_text=bi_text("المؤشر", "Indicator")
+            legend=dict(orientation="h", y=-0.2)
         )
 
         st.plotly_chart(fig, use_container_width=True)
 
-        # 🧭 وسيلة الإيضاح (Legend)
-        legend_html = """
-        <div style='background-color:#f9f9f9; border:1px solid #ddd; border-radius:8px; padding:10px; margin-top:10px;'>
-          <p style='font-size:15px; margin:0;'>
-            <b>🎨 وسيلة الإيضاح / Legend:</b><br>
-            🔴 <b>الأحمر:</b> الأسباب الأكثر تأثيرًا وتشكل معًا <b>حتى 80٪</b> من الملاحظات.<br>
-            ⚪ <b>الرمادي:</b> الأسباب الأقل تأثيرًا وتشكل النسبة المتبقية من الملاحظات.
-          </p>
-        </div>
-        """ if lang == "العربية" else """
-        <div style='background-color:#f9f9f9; border:1px solid #ddd; border-radius:8px; padding:10px; margin-top:10px;'>
-          <p style='font-size:15px; margin:0;'>
-            <b>🎨 Legend:</b><br>
-            🔴 <b>Red:</b> Most frequent causes — top <b>80%</b> of comments.<br>
-            ⚪ <b>Gray:</b> Less frequent causes — remaining share of comments.
-          </p>
-        </div>
-        """
-        st.markdown(legend_html, unsafe_allow_html=True)
-
-        # 📥 زر تنزيل ملف Excel
+        # 📥 زر تنزيل النتائج
         pareto_buffer = io.BytesIO()
         with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
-            counts.to_excel(writer, index=False, sheet_name="Pareto_Results")
+            pareto_display.to_excel(writer, index=False, sheet_name="Pareto_Results")
+
         st.download_button(
             "📥 تنزيل جدول Pareto (Excel)",
             data=pareto_buffer.getvalue(),
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-        # إخفاء عبارة "Made with Streamlit"
-        hide_streamlit_style = """
-            <style>
-            #MainMenu {visibility: hidden;}
-            footer {visibility: hidden;}
-            </style>
-            """
-        st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
-
-
-
-
-
+# =========================================================
+# إخفاء عبارة "Created with Streamlit"
+# =========================================================
+hide_streamlit_style = """
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    </style>
+"""
+st.markdown(hide_streamlit_style, unsafe_allow_html=True)
 
 
 
