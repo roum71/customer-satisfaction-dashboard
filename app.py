@@ -998,18 +998,19 @@ with tab_pareto:
                 bi_text("جميع الإجابات", "All Responses"): "All Responses"
             })
 
-        # 📊 عرض الجدول
-        st.dataframe(
-            counts_display.style.format({
-                "النسبة %": "{:.1f}",
-                "النسبة التراكمية %": "{:.1f}",
-                "%": "{:.1f}",
-                "Cum %": "{:.1f}"
-            }),
-            use_container_width=True
-        )
 
-        # 📈 رسم Pareto ثنائي اللغة
+        # إزالة الأعمدة غير المرغوبة
+        pareto_display = counts.drop(columns=["Color"], errors="ignore").reset_index(drop=True)
+
+        # عرض الجدول بدون عمود التسلسل أو الألوان
+        st.dataframe(
+        pareto_display[["Theme", "Count", "%", "Cum%", "جميع الإجابات/ All Responses"]]
+        .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+        use_container_width=True,
+        hide_index=True  # ✅ لإخفاء عمود التسلسل
+            )
+
+         # 📈 رسم Pareto ثنائي اللغة
         fig = go.Figure()
         fig.add_bar(
             x=counts["Theme"],
@@ -1076,6 +1077,15 @@ with tab_pareto:
             file_name=f"Pareto_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
+        # إخفاء عبارة "Made with Streamlit"
+        hide_streamlit_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            </style>
+            """
+        st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 
 
 
