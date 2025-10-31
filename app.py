@@ -930,7 +930,7 @@ with tab_services:
 # 💬 PARETO TAB — تحليل الملاحظات النوعية
 # =========================================================
 with tab_pareto:
-    st.subheader(bi_text("💬 تحليل الملاحظات", "Customer Comments "))
+    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
     st.info(bi_text(
         "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
@@ -979,10 +979,16 @@ with tab_pareto:
         counts["%"] = counts["Count"] / counts["Count"].sum() * 100
         counts["Cum%"] = counts["%"].cumsum()
 
-        # 🎨 تحديد لون العمود بناءً على النسبة التراكمية (Pareto 80%)
-        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")  # أحمر ورمادي
+        # 🎨 تلوين الأعمدة:
+        # - أحمر حتى 80٪
+        # - وأيضًا العمود الأول الذي يتجاوز 80٪ يُلون بالأحمر
+        # - الرمادي للبقية
+        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")
+        if not counts[counts["Cum%"] > 80].empty:
+            first_above_80_index = counts[counts["Cum%"] > 80].index[0]
+            counts.loc[first_above_80_index, "Color"] = "#e74c3c"
 
-        # 🗂️ جميع الإجابات النصية المجمعة لكل محور
+        # 🗂️ تجميع الإجابات النصية لكل محور
         all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
         counts = counts.merge(all_answers, on="Theme", how="left")
         counts.rename(columns={"__clean": "جميع الإجابات / All Responses"}, inplace=True)
@@ -997,7 +1003,7 @@ with tab_pareto:
             "جميع الإجابات / All Responses": "جميع الإجابات / All Responses"
         }, inplace=True)
 
-        # 🧾 عرض الجدول باللغتين
+        # 🧾 عرض الجدول
         st.dataframe(
             pareto_display[
                 ["المحور / Theme", "عدد الملاحظات / Count", "النسبة / %", "النسبة التراكمية / Cum%", "جميع الإجابات / All Responses"]
@@ -1006,7 +1012,7 @@ with tab_pareto:
             hide_index=True
         )
 
-        # 📈 رسم باريتو بالألوان المطلوبة
+        # 📈 رسم باريتو بالألوان المعدّلة
         fig = go.Figure()
         fig.add_bar(
             x=counts["Theme"],
@@ -1040,6 +1046,15 @@ with tab_pareto:
 
         st.plotly_chart(fig, use_container_width=True)
 
+        # 🧠 تعليق تفسيري بسيط
+        top80 = counts[counts["Cum%"] <= 80]
+        if not top80.empty:
+            top_themes = "، ".join(top80["Theme"].tolist())
+            st.markdown(
+                f"✅ **{bi_text('تمثل المحاور التالية نحو 80٪ من أسباب عدم الرضا:', 'These themes represent about 80% of dissatisfaction reasons:')}**<br>{top_themes}",
+                unsafe_allow_html=True
+            )
+
         # 📥 زر تنزيل النتائج
         pareto_buffer = io.BytesIO()
         with pd.ExcelWriter(pareto_buffer, engine="openpyxl") as writer:
@@ -1053,7 +1068,7 @@ with tab_pareto:
         )
 
 # =========================================================
-# إخفاء عبارة "Created with Streamlit"
+# 🚫 إخفاء عبارة "Created with Streamlit"
 # =========================================================
 hide_streamlit_style = """
     <style>
@@ -1062,35 +1077,3 @@ hide_streamlit_style = """
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
