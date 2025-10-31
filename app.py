@@ -1068,19 +1068,33 @@ with tab_pareto:
         )
 
 # =========================================================
-# 🚫 إخفاء شعار "Created with Streamlit" نهائيًا
+# 🚫 إزالة شعار "Created with Streamlit" أو "Hosted with Streamlit"
 # =========================================================
-hide_streamlit_style = """
+import streamlit as st
+
+hide_streamlit_footer = """
     <style>
+    /* إخفاء القائمة العلوية */
     #MainMenu {visibility: hidden;}
+    
+    /* إخفاء الفوتر التقليدي */
     footer {visibility: hidden !important;}
     footer:after {content:'' !important;}
+
+    /* إخفاء جميع عناصر الهوية الحديثة */
     [data-testid="stToolbar"] {display: none !important;}
-    [data-testid="stStatusWidget"] {display: none !important;}
     [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    [data-testid="stDeployButton"] {display: none !important;}
+    [data-testid="stSidebarCollapseButton"] {visibility: visible !important;}
+    [data-testid="stAppViewContainer"] > .main > div:first-child {padding-top: 1rem !important;}
+    
+    /* إخفاء شريط "Hosted with Streamlit" */
     [data-testid="stFooter"] {display: none !important;}
-    .viewerBadge_link__1S137 {display: none !important;}
-    .stAppDeployButton {display: none !important;}
+    div[data-testid="stActionButtonIcon"] {display: none !important;}
+    .stAppDeployButton, .viewerBadge_link__1S137, .stDeployButton {display: none !important;}
+    section[data-testid="stFooter"] {display: none !important;}
+    div[role="dialog"] {display: none !important;}
     </style>
 """
-st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+st.markdown(hide_streamlit_footer, unsafe_allow_html=True)
