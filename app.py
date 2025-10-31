@@ -746,7 +746,7 @@ with tab_dimensions:
 
         st.dataframe(
             dims.style.format({"النسبة (%)": "{:.1f}%", "Score (%)": "{:.1f}%"}),
-            use_container_width=True
+            use_container_width=True,
             hide_index=True
         )
 # =========================================================
@@ -1094,4 +1094,5 @@ st.markdown("""
     }
     </style>
 """, unsafe_allow_html=True)
+
 
