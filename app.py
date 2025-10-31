@@ -930,7 +930,7 @@ with tab_services:
 # 💬 PARETO TAB — تحليل الملاحظات النوعية
 # =========================================================
 with tab_pareto:
-    st.subheader(bi_text("💬 تحليل الملاحظات (Pareto)", "Customer Comments (Pareto)"))
+    st.subheader(bi_text("💬 تحليل الملاحظات", "Customer Comments "))
     st.info(bi_text(
         "تحليل الملاحظات النوعية لتحديد أكثر الأسباب شيوعًا لعدم الرضا",
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
@@ -1062,6 +1062,7 @@ hide_streamlit_style = """
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 
 
 
