@@ -1068,12 +1068,19 @@ with tab_pareto:
         )
 
 # =========================================================
-# 🚫 إخفاء عبارة "Created with Streamlit"
+# 🚫 إخفاء شعار "Created with Streamlit" نهائيًا
 # =========================================================
 hide_streamlit_style = """
     <style>
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
+    footer {visibility: hidden !important;}
+    footer:after {content:'' !important;}
+    [data-testid="stToolbar"] {display: none !important;}
+    [data-testid="stStatusWidget"] {display: none !important;}
+    [data-testid="stDecoration"] {display: none !important;}
+    [data-testid="stFooter"] {display: none !important;}
+    .viewerBadge_link__1S137 {display: none !important;}
+    .stAppDeployButton {display: none !important;}
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
