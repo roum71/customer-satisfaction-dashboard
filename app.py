@@ -926,7 +926,6 @@ with tab_services:
                     "ℹ️ لا توجد خدمات تحتوي على 30 ردًا أو أكثر.",
                     "ℹ️ No services with 30 or more responses found."
                 ))
-
 # =========================================================
 # 💬 PARETO TAB — تحليل الملاحظات النوعية
 # =========================================================
@@ -937,7 +936,7 @@ with tab_pareto:
         "Qualitative analysis of comments to identify top dissatisfaction reasons."
     ))
 
-    # 🔎 البحث عن العمود النصي المناسب
+    # 🔍 البحث عن العمود النصي المناسب
     text_cols = [c for c in df.columns if any(k in c.lower() for k in ["comment", "ملاحظ", "unsat", "reason"])]
     if not text_cols:
         st.warning("⚠️ لا يوجد عمود نصي لتحليل Pareto.")
@@ -980,33 +979,60 @@ with tab_pareto:
         counts["%"] = counts["Count"] / counts["Count"].sum() * 100
         counts["Cum%"] = counts["%"].cumsum()
 
+        # 🎨 تحديد لون العمود بناءً على النسبة التراكمية (Pareto 80%)
+        counts["Color"] = np.where(counts["Cum%"] <= 80, "#e74c3c", "#95a5a6")  # أحمر ورمادي
+
         # 🗂️ جميع الإجابات النصية المجمعة لكل محور
         all_answers = df.groupby("Theme")["__clean"].apply(lambda x: " / ".join(x.astype(str))).reset_index()
         counts = counts.merge(all_answers, on="Theme", how="left")
         counts.rename(columns={"__clean": "جميع الإجابات / All Responses"}, inplace=True)
 
-        # 📋 إزالة الأعمدة غير المرغوبة (Color) وإخفاء التسلسل
+        # 📋 تجهيز الجدول وعناوين الأعمدة ثنائية اللغة
         pareto_display = counts.drop(columns=["Color"], errors="ignore").reset_index(drop=True)
+        pareto_display.rename(columns={
+            "Theme": "المحور / Theme",
+            "Count": "عدد الملاحظات / Count",
+            "%": "النسبة / %",
+            "Cum%": "النسبة التراكمية / Cum%",
+            "جميع الإجابات / All Responses": "جميع الإجابات / All Responses"
+        }, inplace=True)
 
+        # 🧾 عرض الجدول باللغتين
         st.dataframe(
-            pareto_display[["Theme", "Count", "%", "Cum%", "جميع الإجابات / All Responses"]]
-                .style.format({"%": "{:.1f}", "Cum%": "{:.1f}"}),
+            pareto_display[
+                ["المحور / Theme", "عدد الملاحظات / Count", "النسبة / %", "النسبة التراكمية / Cum%", "جميع الإجابات / All Responses"]
+            ].style.format({"النسبة / %": "{:.1f}", "النسبة التراكمية / Cum%": "{:.1f}"}),
             use_container_width=True,
             hide_index=True
         )
 
-        # 📈 رسم باريتو
+        # 📈 رسم باريتو بالألوان المطلوبة
         fig = go.Figure()
-        fig.add_bar(x=counts["Theme"], y=counts["Count"], name="عدد الملاحظات", marker_color="#3498db")
-        fig.add_scatter(x=counts["Theme"], y=counts["Cum%"], name="النسبة التراكمية", yaxis="y2", mode="lines+markers")
+        fig.add_bar(
+            x=counts["Theme"],
+            y=counts["Count"],
+            marker_color=counts["Color"],
+            name=bi_text("عدد الملاحظات", "Count")
+        )
+        fig.add_scatter(
+            x=counts["Theme"],
+            y=counts["Cum%"],
+            name=bi_text("النسبة التراكمية", "Cumulative %"),
+            yaxis="y2",
+            mode="lines+markers",
+            marker=dict(color="#2c3e50")
+        )
 
+        # 🎨 تصميم الرسم البياني
         fig.update_layout(
             title=dict(
                 text=bi_text("📊 تحليل باريتو — المحاور الرئيسية", "📊 Pareto Analysis — Key Themes"),
-                x=0.5, xanchor="center", font=dict(size=18, color="#333")
+                x=0.5,  # العنوان في المنتصف
+                xanchor="center",
+                font=dict(size=18, color="#333")
             ),
-            yaxis=dict(title="عدد الملاحظات"),
-            yaxis2=dict(title="النسبة التراكمية (%)", overlaying="y", side="right"),
+            yaxis=dict(title=bi_text("عدد الملاحظات", "Number of Comments")),
+            yaxis2=dict(title=bi_text("النسبة التراكمية (%)", "Cumulative Percentage (%)"), overlaying="y", side="right"),
             bargap=0.25,
             height=600,
             legend=dict(orientation="h", y=-0.2)
@@ -1036,6 +1062,7 @@ hide_streamlit_style = """
     </style>
 """
 st.markdown(hide_streamlit_style, unsafe_allow_html=True)
+
 
 
 
